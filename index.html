@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather GPS Auto</title>
+
+<style>
+body{
+margin:0;
+font-family:sans-serif;
+background:linear-gradient(to top,#667db6,#0082c8);
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+color:white;
+transition:1s;
+}
+
+.card{
+background:rgba(0,0,0,0.3);
+padding:30px;
+border-radius:20px;
+width:380px;
+text-align:center;
+backdrop-filter:blur(10px);
+}
+
+.big{
+font-size:48px;
+font-weight:bold;
+}
+
+.small{
+font-size:14px;
+opacity:0.8;
+margin-top:5px;
+}
+
+.section{
+margin-top:15px;
+font-size:13px;
+text-align:left;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+<div id="clock"></div>
+<h2 id="city">Mendeteksi lokasi...</h2>
+<div class="big" id="temp">--°C</div>
+<div id="desc"></div>
+
+<div class="section" id="extra"></div>
+<div class="section" id="recommendation"></div>
+<div class="section" id="warning"></div>
+</div>
+
+<script>
+
+const apiKey="b313e26bc324fe7d98b9611f6767b770";
+
+/* ================= CLOCK ================= */
+
+function updateClock(){
+const now=new Date();
+const h=String(now.getHours()).padStart(2,'0');
+const m=String(now.getMinutes()).padStart(2,'0');
+const s=String(now.getSeconds()).padStart(2,'0');
+document.getElementById("clock").innerText=`${h}:${m}:${s}`;
+}
+setInterval(updateClock,1000);
+updateClock();
+
+/* ================= GPS ================= */
+
+navigator.geolocation.getCurrentPosition(
+pos=>{
+getWeather(pos.coords.latitude,pos.coords.longitude);
+},
+err=>{
+document.getElementById("city").innerText="GPS ditolak.";
+}
+);
+
+function customFeelLike(temp, humidity, wind, weatherMain, sunrise, sunset){
+
+const now = Date.now()/1000;
+const isDay = (now > sunrise && now < sunset);
+
+let feel = temp;
+
+/* ========================= */
+/* ===== SIANG (HEAT) ===== */
+/* ========================= */
+
+if(isDay){
+
+// Heat index sederhana
+feel = temp + (0.33 * humidity/10) - (0.7 * wind) - 4;
+
+// Matahari terik
+if(weatherMain.includes("clear")){
+feel += 2;
+}
+
+// Mendung → sedikit lebih sejuk
+if(weatherMain.includes("cloud")){
+feel -= 1;
+}
+
+// Hujan → lebih dingin
+if(weatherMain.includes("rain")){
+feel -= 2;
+}
+
+}
+
+/* ========================= */
+/* ===== MALAM (COOL) ===== */
+/* ========================= */
+
+else{
+
+// Wind chill sederhana
+feel = temp - (wind * 0.7);
+
+// Hujan malam lebih dingin
+if(weatherMain.includes("rain")){
+feel -= 1.5;
+}
+
+// Clear night bisa lebih dingin
+if(weatherMain.includes("clear")){
+feel -= 1;
+}
+
+}
+
+return Math.round(feel);
+}
+
+function recommendation(feelLike, weather, wind){
+
+let outfit="";
+let activity="";
+let warning="";
+
+/* ============================= */
+/* ====== SUHU BERDASARKAN FEEL LIKE ====== */
+/* ============================= */
+
+if(feelLike >= 38){
+outfit="Tanktop breathable / kaos boxy dry-fit + flanel tipis (dibuka) + cargo short + high socks + sneakers mesh ringan + sunglasses + sling bag + sunscreen";
+activity="Built Up Custom indoor, Gym ringan pagi/sore. Hindari riding siang terik.";
+}
+
+else if(feelLike >= 35){
+outfit="Kaos oversized premium dry-fit + cargo short + sneakers breathable + cap trucker + jam sporty + kacamata hitam";
+activity="Riding Motor Custom jarak dekat sore hari, Hangout, atau Built Up Custom.";
+}
+
+else if(feelLike >= 32){
+outfit="Workshirt lengan pendek + inner polos + chino slim / cargo tipis + sepatu casual leather / sneakers klasik + jam analog";
+activity="Riding Motor Custom, Skateboarding, atau Hangout sore.";
+}
+
+else if(feelLike >= 29){
+outfit="Workshirt digulung + jeans straight fit ringan + boots ringan / sneakers klasik + sling bag minimalis";
+activity="Riding Motor Custom, Memanah outdoor, atau Gym.";
+}
+
+else if(feelLike >= 26){
+outfit="Coach jacket tipis / hoodie ringan + kaos fit + jeans gelap + boots riding + jam field watch";
+activity="Camping ringan, Climbing, Riding jarak menengah.";
+}
+
+else if(feelLike >= 23){
+outfit="Field jacket / denim jacket + inner thermal tipis + celana tebal + boots leather + sarung tangan riding";
+activity="Taktikal training ringan, Memanah, atau Built Up Custom.";
+}
+
+else if(feelLike >= 20){
+outfit="Layering: hoodie + jacket tebal + celana tebal + boots + beanie + sarung tangan";
+activity="Climbing dingin, perawatan motor detail, latihan taktik.";
+}
+
+else{
+outfit="Thermal full layer + hoodie + heavy jacket + celana tebal + boots + beanie + neck warmer";
+activity="Fokus indoor: Built Up Custom detail, perencanaan proyek, latihan taktik teori.";
+}
+
+
+/* ============================= */
+/* ===== MODIFIER CUACA ======== */
+/* ============================= */
+
+if(weather.includes("rain")){
+outfit += " + Jaket waterproof / raincoat set + tas anti air";
+activity = "Built Up Custom indoor, Gym, atau latihan taktik indoor.";
+warning = "⚠️ Jalanan licin! Hindari akselerasi mendadak dan rebah ekstrem saat riding motor custom.";
+}
+
+if(weather.includes("drizzle")){
+warning += " ⚠️ Aspal lembap. Jaga jarak pengereman dan hindari ban botak.";
+}
+
+if(weather.includes("thunderstorm")){
+activity = "Tunda semua aktivitas outdoor. Fokus indoor.";
+warning = "⛔ Badai petir! Sangat tidak disarankan riding motor custom.";
+}
+
+if(weather.includes("cloud") && feelLike >= 28){
+activity += " Cuaca mendukung aktivitas outdoor tanpa panas berlebih.";
+}
+
+if(wind > 8){
+warning += " 🌬️ Angin cukup kencang, waspadai crosswind saat riding.";
+}
+
+
+/* ============================= */
+/* ===== OUTPUT FINAL ========== */
+/* ============================= */
+
+return `
+<b>Outfit Rekomendasi:</b><br>${outfit}
+<br><br>
+<b>Aktivitas Maskulinitas:</b><br>${activity}
+<br><br>
+<b>Safety Notice:</b><br>${warning || "Kondisi aman untuk aktivitas."}
+`;
+}
+
+function calculateUV(feelLike, cloud, wind, visibility, sunrise, sunset){
+
+const now = Date.now()/1000;
+const isDay = now >= sunrise && now <= sunset;
+
+/* ========================= */
+/* ===== NIGHT MODE ======== */
+/* ========================= */
+
+if(!isDay){
+return { value: 0, category: "Night Mode 🌙" };
+}
+
+/* ========================= */
+/* ===== BASE UV ========= */
+/* ========================= */
+
+let uv = 0;
+
+// Basis dari FeelLike (iklim tropis)
+if(feelLike >= 38) uv = 11;
+else if(feelLike >= 35) uv = 9;
+else if(feelLike >= 32) uv = 8;
+else if(feelLike >= 29) uv = 6;
+else if(feelLike >= 26) uv = 4;
+else if(feelLike >= 23) uv = 2;
+else uv = 1;
+
+/* ========================= */
+/* ===== CLOUD MODIFIER ==== */
+/* ========================= */
+
+// Semakin tinggi awan → UV turun
+let cloudFactor = 1 - (cloud / 120);
+if(cloudFactor < 0.2) cloudFactor = 0.2;
+
+uv *= cloudFactor;
+
+/* ========================= */
+/* ===== WIND MODIFIER ===== */
+/* ========================= */
+
+// Angin kencang → radiasi terasa sedikit lebih stabil
+if(wind > 10) uv *= 0.9;
+if(wind > 15) uv *= 0.8;
+
+/* ========================= */
+/* ===== VISIBILITY MOD ===== */
+/* ========================= */
+
+// Kabut / jarak pandang rendah → UV efektif turun
+if(visibility < 5) uv *= 0.8;
+if(visibility < 2) uv *= 0.6;
+
+/* ========================= */
+/* ===== FINAL ROUND ======= */
+/* ========================= */
+
+uv = Math.round(uv);
+
+/* ========================= */
+/* ===== CATEGORY ========= */
+/* ========================= */
+
+let category = "";
+
+if(uv <= 2) category = "Low";
+else if(uv <= 5) category = "Moderate";
+else if(uv <= 7) category = "High";
+else if(uv <= 10) category = "Very High";
+else category = "Extreme ☀️";
+
+return { value: uv, category: category };
+}
+
+/* ================= WEATHER ================= */
+
+function getWeather(lat,lon){
+
+fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=id&appid=${apiKey}`)
+.then(res=>res.json())
+.then(data=>{
+
+if(data.cod!=200){
+document.getElementById("city").innerText="Gagal ambil data cuaca";
+return;
+}
+
+/* ===== BASIC ===== */
+
+document.getElementById("city").innerText=data.name;
+document.getElementById("temp").innerText=Math.round(data.main.temp)+"°C";
+const feel = customFeelLike(
+data.main.temp,
+data.main.humidity,
+data.wind.speed,
+data.weather[0].main.toLowerCase(),
+data.sys.sunrise,
+data.sys.sunset
+);
+
+document.getElementById("desc").innerText=
+"RealFeel "+feel+"°C | "+data.weather[0].description;
+
+/* ===== EXTRA DATA ===== */
+
+const wind=data.wind.speed;
+const visibility=data.visibility/1000; // km
+const pressure=data.main.pressure;
+const cloud = data.clouds.all;
+const sunrise=formatTime(data.sys.sunrise);
+const sunset=formatTime(data.sys.sunset);
+const uvData = calculateUV(
+feel,
+data.clouds.all,
+data.wind.speed,
+data.visibility/1000,
+data.sys.sunrise,
+data.sys.sunset
+);
+
+let windStatus="Normal";
+if(wind>10) windStatus="Kencang ⚠️";
+if(wind>15) windStatus="Sangat kencang ⛔";
+
+document.getElementById("extra").innerHTML=`
+<b>Angin:</b> ${wind} m/s (${windStatus})<br>
+<b>Tekanan:</b> ${pressure} hPa<br>
+<b>Jarak Pandang:</b> ${visibility} km<br>
+<b>Tutupan Awan:</b> ${cloud}%<br>
+<b>UV Index:</b> ${uvData.value} (${uvData.category})<br>
+<b>Sunrise:</b> ${sunrise}<br>
+<b>Sunset:</b> ${sunset}
+`;
+
+document.getElementById("recommendation").innerHTML =
+recommendation(
+    feel,
+    data.weather[0].main.toLowerCase(),
+    data.wind.speed
+);
+
+/* ===== RIDING WARNING ===== */
+
+let warning="Kondisi aman untuk riding motor custom.";
+
+if(data.weather[0].main.toLowerCase().includes("rain")){
+warning="⚠️ Jalanan licin! Hindari rebah ekstrem & akselerasi mendadak.";
+}
+
+if(visibility<5){
+warning+=" ⚠️ Jarak pandang rendah! Gunakan lampu & jaga jarak.";
+}
+
+if(wind>10){
+warning+=" ⚠️ Waspadai crosswind saat riding.";
+}
+
+if(data.weather[0].main.toLowerCase().includes("thunderstorm")){
+warning="⛔ Badai petir! Tidak disarankan riding.";
+}
+
+document.getElementById("warning").innerHTML="<b>Safety Riding:</b><br>"+warning;
+
+})
+.catch(()=>{
+document.getElementById("city").innerText="Gagal ambil data cuaca";
+});
+
+}
+
+/* ================= TIME FORMAT ================= */
+
+function formatTime(ts){
+const d=new Date(ts*1000);
+return String(d.getHours()).padStart(2,'0')+":"+
+String(d.getMinutes()).padStart(2,'0');
+}
+
+</script>
+
+</body>
+</html>
