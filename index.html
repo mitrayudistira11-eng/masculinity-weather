@@ -2,421 +2,234 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weather GPS Auto</title>
+<title>Weather Simulator PRO + Lightning</title>
 
 <style>
 body{
 margin:0;
 font-family:sans-serif;
-background:linear-gradient(to top,#667db6,#0082c8);
+height:100vh;
 display:flex;
 justify-content:center;
 align-items:center;
-height:100vh;
 color:white;
+overflow:hidden;
 transition:1s;
 }
 
-.card{
-background:rgba(0,0,0,0.3);
-padding:30px;
+/* SKY */
+#sky{
+position:fixed;
+inset:0;
+overflow:hidden;
+pointer-events:none;
+}
+
+/* SUN / MOON */
+.sunMoon{
+position:absolute;
+width:120px;
+height:120px;
+border-radius:50%;
+top:15%;
+left:50%;
+transform:translateX(-50%);
+}
+.sun{background:radial-gradient(circle,#fff799,#ffb347,#ff8800);box-shadow:0 0 80px rgba(255,180,0,.9);}
+.moon{background:radial-gradient(circle,#fff,#ccc,#999);box-shadow:0 0 30px rgba(255,255,255,.6);}
+
+/* CLOUD */
+.clouds{
+position:absolute;
+inset:0;
+filter:blur(10px);
+opacity:0;
+background:
+radial-gradient(circle at 30% 40%,rgba(255,255,255,.6) 60px,transparent 70px),
+radial-gradient(circle at 60% 30%,rgba(255,255,255,.6) 70px,transparent 80px);
+}
+
+/* STARS */
+.stars{
+position:absolute;
+inset:0;
+opacity:0;
+background:
+radial-gradient(2px 2px at 20% 30%,white 60%,transparent),
+radial-gradient(2px 2px at 70% 60%,white 60%,transparent);
+}
+
+/* ===== RAIN ===== */
+.rain{position:absolute;inset:0;overflow:hidden;opacity:0;}
+.drop{
+position:absolute;
+width:2px;
+height:18px;
+background:rgba(255,255,255,.9);
+border-radius:2px;
+transform:rotate(20deg);
+animation:fall linear infinite;
+}
+@keyframes fall{
+from{transform:translate(-20px,-20px) rotate(20deg)}
+to{transform:translate(120px,110vh) rotate(20deg)}
+}
+
+/* ===== FOG ===== */
+.fog{
+position:absolute;
+inset:0;
+opacity:0;
+filter:blur(40px);
+background:
+radial-gradient(circle at 40% 40%,rgba(255,255,255,.25),transparent 60%),
+radial-gradient(circle at 70% 60%,rgba(255,255,255,.2),transparent 60%);
+}
+
+/* ===== PETIR FLASH ===== */
+.flash{
+position:absolute;
+inset:0;
+background:white;
+opacity:0;
+pointer-events:none;
+}
+
+/* PANEL */
+.panel{
+position:relative;
+z-index:10;
+background:rgba(0,0,0,.6);
+padding:25px;
 border-radius:20px;
-width:380px;
 text-align:center;
-backdrop-filter:blur(10px);
 }
-
-.big{
-font-size:48px;
-font-weight:bold;
-}
-
-.small{
-font-size:14px;
-opacity:0.8;
-margin-top:5px;
-}
-
-.section{
-margin-top:15px;
-font-size:13px;
-text-align:left;
+button{
+margin:5px;
+padding:8px 14px;
+border:none;
+border-radius:10px;
+cursor:pointer;
 }
 </style>
 </head>
 
 <body>
 
-<div class="card">
-<div id="clock"></div>
-<h2 id="city">Mendeteksi lokasi...</h2>
-<div class="big" id="temp">--°C</div>
-<div id="desc"></div>
+<div id="sky">
+  <div id="sunMoon" class="sunMoon"></div>
+  <div id="clouds" class="clouds"></div>
+  <div id="stars" class="stars"></div>
+  <div id="rain" class="rain"></div>
+  <div id="fog" class="fog"></div>
+  <div id="flash" class="flash"></div>
+</div>
 
-<div class="section" id="extra"></div>
-<div class="section" id="recommendation"></div>
-<div class="section" id="warning"></div>
+<div class="panel">
+<button onclick="setWeather('clear')">☀️ Clear</button>
+<button onclick="setWeather('clouds')">🌤️ Cloud</button>
+<button onclick="setWeather('rain')">🌧️ Rain</button>
+<button onclick="setWeather('storm')">⛈️ Storm</button>
+<button onclick="setWeather('mist')">🌫️ Fog</button>
+<button onclick="setWeather('night')">🌙 Night</button>
 </div>
 
 <script>
+const sunMoon=document.getElementById("sunMoon");
+const clouds=document.getElementById("clouds");
+const stars=document.getElementById("stars");
+const rain=document.getElementById("rain");
+const fog=document.getElementById("fog");
+const flash=document.getElementById("flash");
 
-const apiKey="b313e26bc324fe7d98b9611f6767b770";
+let lightningInterval=null;
 
-/* ================= CLOCK ================= */
+function reset(){
+clouds.style.opacity=0;
+stars.style.opacity=0;
+rain.style.opacity=0;
+fog.style.opacity=0;
+rain.innerHTML="";
 
-function updateClock(){
-const now=new Date();
-const h=String(now.getHours()).padStart(2,'0');
-const m=String(now.getMinutes()).padStart(2,'0');
-const s=String(now.getSeconds()).padStart(2,'0');
-document.getElementById("clock").innerText=`${h}:${m}:${s}`;
-}
-setInterval(updateClock,1000);
-updateClock();
-
-/* ================= GPS ================= */
-
-navigator.geolocation.getCurrentPosition(
-pos=>{
-getWeather(pos.coords.latitude,pos.coords.longitude);
-},
-err=>{
-document.getElementById("city").innerText="GPS ditolak.";
-}
-);
-
-function customFeelLike(temp, humidity, wind, weatherMain, sunrise, sunset){
-
-const now = Date.now()/1000;
-const isDay = (now > sunrise && now < sunset);
-
-let feel = temp;
-
-/* ========================= */
-/* ===== SIANG (HEAT) ===== */
-/* ========================= */
-
-if(isDay){
-
-// Heat index sederhana
-feel = temp + (0.33 * humidity/10) - (0.7 * wind) - 4;
-
-// Matahari terik
-if(weatherMain.includes("clear")){
-feel += 2;
+clearInterval(lightningInterval);
+flash.style.opacity=0;
 }
 
-// Mendung → sedikit lebih sejuk
-if(weatherMain.includes("cloud")){
-feel -= 1;
+/* HUJAN */
+function createRain(n){
+for(let i=0;i<n;i++){
+const d=document.createElement("div");
+d.className="drop";
+d.style.left=Math.random()*100+"%";
+d.style.animationDuration=(0.3+Math.random()*0.5)+"s";
+d.style.animationDelay=Math.random()+"s";
+rain.appendChild(d);
+}
 }
 
-// Hujan → lebih dingin
-if(weatherMain.includes("rain")){
-feel -= 2;
+/* PETIR */
+function startLightning(){
+lightningInterval=setInterval(()=>{
+if(Math.random()<0.4){ // peluang muncul
+flash.style.opacity=0.9;
+setTimeout(()=>flash.style.opacity=0,80);
+setTimeout(()=>{
+flash.style.opacity=0.6;
+setTimeout(()=>flash.style.opacity=0,60);
+},120);
+}
+},20000);
 }
 
+function setWeather(type){
+
+reset();
+
+/* default: sembunyikan dulu */
+sunMoon.style.display="none";
+
+if(type==="clear"){
+document.body.style.background="#4facfe";
+sunMoon.className="sunMoon sun";
+sunMoon.style.display="block";
 }
 
-/* ========================= */
-/* ===== MALAM (COOL) ===== */
-/* ========================= */
-
-else{
-
-// Wind chill sederhana
-feel = temp - (wind * 0.7);
-
-// Hujan malam lebih dingin
-if(weatherMain.includes("rain")){
-feel -= 1.5;
+if(type==="clouds"){
+document.body.style.background="#2F80ED";
+sunMoon.className="sunMoon sun";
+sunMoon.style.display="block";
+clouds.style.opacity=.6;
 }
 
-// Clear night bisa lebih dingin
-if(weatherMain.includes("clear")){
-feel -= 1;
+if(type==="rain"){
+document.body.style.background="#2c3e50";
+clouds.style.opacity=.7;
+rain.style.opacity=1;
+createRain(120);
 }
 
+if(type==="storm"){
+document.body.style.background="#0f0f0f";
+clouds.style.opacity=.9;
+fog.style.opacity=.3;
+rain.style.opacity=1;
+createRain(220);
+startLightning();
 }
 
-return Math.round(feel);
+if(type==="mist"){
+document.body.style.background="#5f6c7b";
+fog.style.opacity=.5;
 }
 
-function recommendation(feelLike, weather, wind){
-
-let outfit="";
-let activity="";
-let warning="";
-
-/* ============================= */
-/* ====== SUHU BERDASARKAN FEEL LIKE ====== */
-/* ============================= */
-
-if(feelLike >= 38){
-outfit="Tanktop breathable / kaos boxy dry-fit + flanel tipis (dibuka) + cargo short + high socks + sneakers mesh ringan + sunglasses + sling bag + sunscreen";
-activity="Built Up Custom indoor, Gym ringan pagi/sore. Hindari riding siang terik.";
-warning = "⚠️ cuaca panas ekstrem, gunakan alat pendingin ruangan untuk membuat zona suhu nyaman anda tetap stabil.";    
+if(type==="night"){
+document.body.style.background="#020617";
+sunMoon.className="sunMoon moon";
+sunMoon.style.display="block";
+stars.style.opacity=1;
 }
-
-else if(feelLike >= 35){
-outfit="Kaos oversized premium dry-fit + cargo short + sneakers breathable + cap trucker + jam sporty + kacamata hitam";
-activity="Riding Motor Custom jarak dekat sore hari, Hangout, atau Built Up Custom.";
 }
-
-else if(feelLike >= 32){
-outfit="Workshirt lengan pendek + inner polos + chino slim / cargo tipis + sepatu casual leather / sneakers klasik + jam analog";
-activity="Riding Motor Custom, Skateboarding, atau Hangout sore.";
-}
-
-else if(feelLike >= 29){
-outfit="Workshirt digulung + jeans straight fit ringan + boots ringan / sneakers klasik + sling bag minimalis";
-activity="Riding Motor Custom, Memanah outdoor, atau Gym.";
-}
-
-else if(feelLike >= 26){
-outfit="Coach jacket tipis / rompi + kaos fit + jeans gelap + boots riding + jam field watch";
-activity="Camping ringan, Climbing, Riding jarak menengah.";
-}
-
-else if(feelLike >= 23){
-outfit="Jaket Kulit / denim + inner thermal tipis + celana tebal + boots leather + sarung tangan riding";
-activity="Taktikal training ringan, Memanah, atau Built Up Custom.";
-}
-
-else if(feelLike >= 20){
-outfit="Layering: jacket tebal / mantel + celana tebal + boots + beanie + sarung tangan";
-activity="Climbing dingin, perawatan motor detail, latihan taktik.";
-}
-
-else{
-outfit="Mantel tebal full thermal + celana tebal + boots + beanie + neck warmer";
-activity="Fokus indoor: Built Up Custom detail, perencanaan proyek, latihan taktik teori, gym, bobok.";
-}
-
-
-/* ============================= */
-/* ===== MODIFIER CUACA ======== */
-/* ============================= */
-
-if(weather.includes("rain")){
-outfit += " + Jaket waterproof / raincoat set + tas anti air";
-activity = "Built Up Custom indoor, Gym, atau latihan taktik indoor.";
-warning = "⚠️ Jalanan licin! Hindari akselerasi mendadak dan rebah ekstrem saat riding motor custom.";
-}
-
-if(weather.includes("drizzle")){
-warning += " ⚠️ Aspal lembap. Jaga jarak pengereman dan hindari ban botak.";
-}
-
-if(weather.includes("thunderstorm")){
-activity = "Tunda semua aktivitas outdoor. Fokus indoor.";
-warning = "⛔ Badai petir! Sangat tidak disarankan riding motor custom.";
-}
-
-if(weather.includes("cloud") && feelLike >= 28){
-activity += " Cuaca mendukung aktivitas outdoor tanpa panas berlebih.";
-}
-
-if(wind > 8){
-warning += " 🌬️ Angin cukup kencang, waspadai crosswind saat riding.";
-}
-
-
-/* ============================= */
-/* ===== OUTPUT FINAL ========== */
-/* ============================= */
-
-return `
-<b>Outfit Rekomendasi:</b><br>${outfit}
-<br><br>
-<b>Aktivitas Maskulinitas:</b><br>${activity}
-<br><br>
-<b>Safety Notice:</b><br>${warning || "Kondisi aman untuk aktivitas."}
-`;
-}
-
-function calculateUV(feelLike, cloud, wind, visibility, sunrise, sunset){
-
-const now = Date.now()/1000;
-const isDay = now >= sunrise && now <= sunset;
-
-/* ========================= */
-/* ===== NIGHT MODE ======== */
-/* ========================= */
-
-if(!isDay){
-return { value: 0, category: "Night Mode 🌙" };
-}
-
-/* ========================= */
-/* ===== BASE UV ========= */
-/* ========================= */
-
-let uv = 0;
-
-// Basis dari FeelLike (iklim tropis)
-if(feelLike >= 38) uv = 11;
-else if(feelLike >= 35) uv = 9;
-else if(feelLike >= 32) uv = 8;
-else if(feelLike >= 29) uv = 6;
-else if(feelLike >= 26) uv = 4;
-else if(feelLike >= 23) uv = 2;
-else uv = 1;
-
-/* ========================= */
-/* ===== CLOUD MODIFIER ==== */
-/* ========================= */
-
-// Semakin tinggi awan → UV turun
-let cloudFactor = 1 - (cloud / 120);
-if(cloudFactor < 0.2) cloudFactor = 0.2;
-
-uv *= cloudFactor;
-
-/* ========================= */
-/* ===== WIND MODIFIER ===== */
-/* ========================= */
-
-// Angin kencang → radiasi terasa sedikit lebih stabil
-if(wind > 10) uv *= 0.9;
-if(wind > 15) uv *= 0.8;
-
-/* ========================= */
-/* ===== VISIBILITY MOD ===== */
-/* ========================= */
-
-// Kabut / jarak pandang rendah → UV efektif turun
-if(visibility < 5) uv *= 0.8;
-if(visibility < 2) uv *= 0.6;
-
-/* ========================= */
-/* ===== FINAL ROUND ======= */
-/* ========================= */
-
-uv = Math.round(uv);
-
-/* ========================= */
-/* ===== CATEGORY ========= */
-/* ========================= */
-
-let category = "";
-
-if(uv <= 2) category = "Low";
-else if(uv <= 5) category = "Moderate";
-else if(uv <= 7) category = "High";
-else if(uv <= 10) category = "Very High";
-else category = "Extreme ☀️";
-
-return { value: uv, category: category };
-}
-
-/* ================= WEATHER ================= */
-
-function getWeather(lat,lon){
-
-fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=id&appid=${apiKey}`)
-.then(res=>res.json())
-.then(data=>{
-
-if(data.cod!=200){
-document.getElementById("city").innerText="Gagal ambil data cuaca";
-return;
-}
-
-/* ===== BASIC ===== */
-
-document.getElementById("city").innerText=data.name;
-document.getElementById("temp").innerText=Math.round(data.main.temp)+"°C";
-const feel = customFeelLike(
-data.main.temp,
-data.main.humidity,
-data.wind.speed,
-data.weather[0].main.toLowerCase(),
-data.sys.sunrise,
-data.sys.sunset
-);
-
-document.getElementById("desc").innerText=
-"RealFeel "+feel+"°C | "+data.weather[0].description;
-
-/* ===== EXTRA DATA ===== */
-
-const wind=data.wind.speed;
-const visibility=data.visibility/1000; // km
-const pressure=data.main.pressure;
-const cloud = data.clouds.all;
-const sunrise=formatTime(data.sys.sunrise);
-const sunset=formatTime(data.sys.sunset);
-const uvData = calculateUV(
-feel,
-data.clouds.all,
-data.wind.speed,
-data.visibility/1000,
-data.sys.sunrise,
-data.sys.sunset
-);
-
-let windStatus="Normal";
-if(wind>10) windStatus="Kencang ⚠️";
-if(wind>15) windStatus="Sangat kencang ⛔";
-
-document.getElementById("extra").innerHTML=`
-<b>Angin:</b> ${wind} m/s (${windStatus})<br>
-<b>Tekanan:</b> ${pressure} hPa<br>
-<b>Jarak Pandang:</b> ${visibility} km<br>
-<b>Tutupan Awan:</b> ${cloud}%<br>
-<b>UV Index:</b> ${uvData.value} (${uvData.category})<br>
-<b>Sunrise:</b> ${sunrise}<br>
-<b>Sunset:</b> ${sunset}
-`;
-
-document.getElementById("recommendation").innerHTML =
-recommendation(
-    feel,
-    data.weather[0].main.toLowerCase(),
-    data.wind.speed
-);
-
-/* ===== RIDING WARNING ===== */
-
-let warning="Kondisi aman untuk riding motor custom.";
-
-if(data.weather[0].main.toLowerCase().includes("rain")){
-warning="⚠️ Jalanan licin! Hindari rebah ekstrem & akselerasi mendadak.";
-}
-
-if(visibility<5){
-warning+=" ⚠️ Jarak pandang rendah! Gunakan lampu & jaga jarak.";
-}
-
-if(wind>10){
-warning+=" ⚠️ Waspadai crosswind saat riding.";
-}
-
-if(data.weather[0].main.toLowerCase().includes("thunderstorm")){
-warning="⛔ Badai petir! Tidak disarankan riding.";
-}
-
-document.getElementById("warning").innerHTML="<b>Safety Riding:</b><br>"+warning;
-
-})
-.catch(()=>{
-document.getElementById("city").innerText="Gagal ambil data cuaca";
-});
-
-}
-
-/* ================= TIME FORMAT ================= */
-
-function formatTime(ts){
-const d=new Date(ts*1000);
-return String(d.getHours()).padStart(2,'0')+":"+
-String(d.getMinutes()).padStart(2,'0');
-}
-
 </script>
 
 </body>
 </html>
-
