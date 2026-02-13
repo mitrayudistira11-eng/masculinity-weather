@@ -194,6 +194,20 @@ box-shadow:0 20px 60px rgba(0,0,0,0.45);
 
 .big{font-size:48px;font-weight:700}
 .section{margin-top:14px;font-size:13px}
+
+.scoreBar{
+height:10px;
+border-radius:8px;
+background:rgba(255,255,255,.15);
+overflow:hidden;
+margin-top:6px;
+}
+
+.scoreFill{
+height:100%;
+transition:.4s;
+}
+
 </style>
 </head>
 
@@ -213,6 +227,7 @@ box-shadow:0 20px 60px rgba(0,0,0,0.45);
 <h2 id="city">Mendeteksi lokasi...</h2>
 <div class="big" id="temp">--°C</div>
 <div id="desc"></div>
+<div class="section" id="outdoorScore"></div>
 <div class="section" id="extra"></div>
 <div class="section" id="recommendation"></div>
 <div class="section" id="warning"></div>
@@ -416,19 +431,53 @@ document.getElementById("desc").innerText=
 /* ===== EXTRA DATA ===== */
 
 const wind=data.wind.speed;
-const visibility=data.visibility/1000; // km
+const humidity = data.main.humidity;
+/* ===== DEW POINT ===== */
+const a = 17.27;
+const b = 237.7;
+
+const alpha = ((a * data.main.temp) / (b + data.main.temp)) + Math.log(humidity/100);
+const dewPoint = (b * alpha) / (a - alpha);
+let dewStatus = "Nyaman";
+
+if(dewPoint >= 27) dewStatus = "Sangat Gerah 🥵";
+else if(dewPoint >= 24) dewStatus = "Gerah";
+else if(dewPoint >= 20) dewStatus = "Lembap";
+else if(dewPoint >= 16) dewStatus = "Sejuk";
+else dewStatus = "Kering ❄️";
+const visibility = (data.visibility || 10000) / 1000;
 const pressure=data.main.pressure;
 const cloud = data.clouds.all;
 const sunrise=formatTime(data.sys.sunrise);
 const sunset=formatTime(data.sys.sunset);
 const uvData = calculateUV(
-feel,
+data.weather[0].main.toLowerCase(),
 data.clouds.all,
-data.wind.speed,
-data.visibility/1000,
+(data.visibility ?? 10000) / 1000,
 data.sys.sunrise,
-data.sys.sunset
+data.sys.sunset,
+data.coord.lat
 );
+
+const outdoorScore = calculateOutdoorScore(
+feel,
+data.weather[0].main.toLowerCase(),
+uvData.value,
+data.wind.speed,
+visibility
+);
+
+const color =
+outdoorScore >= 8 ? "#22c55e" :
+outdoorScore >= 5 ? "#facc15" :
+"#ef4444";
+
+document.getElementById("outdoorScore").innerHTML = `
+<b>Outdoor Activity Friendly:</b> ${outdoorScore}/10
+<div class="scoreBar">
+  <div class="scoreFill" style="width:${outdoorScore*10}%; background:${color}"></div>
+</div>
+`;
 
 let windStatus="Normal";
 if(wind>10) windStatus="Kencang ⚠️";
@@ -436,6 +485,8 @@ if(wind>15) windStatus="Sangat kencang ⛔";
 
 document.getElementById("extra").innerHTML=`
 <b>Angin:</b> ${wind} m/s (${windStatus})<br>
+<b>Kelembapan:</b> ${humidity}%<br>
+<b>Dew Point:</b> ${dewPoint.toFixed(1)}°C (${dewStatus})<br>
 <b>Tekanan:</b> ${pressure} hPa<br>
 <b>Jarak Pandang:</b> ${visibility} km<br>
 <b>Tutupan Awan:</b> ${cloud}%<br>
@@ -477,62 +528,111 @@ document.getElementById("warning").innerHTML="<b>Safety Riding:</b><br>"+warning
 }
 
 
-function customFeelLike(temp, humidity, wind, weatherMain, sunrise, sunset){
+function customFeelLike(temp, humidity, wind, weatherMain, sunrise, sunset, cloudPercent){
 
 const now = Date.now()/1000;
-const isDay = (now > sunrise && now < sunset);
-
-let feel = temp;
 
 /* ========================= */
-/* ===== SIANG (HEAT) ===== */
+/* ===== SAFETY FIX ======== */
 /* ========================= */
+
+humidity = Math.max(1, humidity); // cegah log(0)
+cloudPercent = cloudPercent ?? 0;
+
+/* ========================= */
+/* ===== DEW POINT ========= */
+/* ========================= */
+
+const a = 17.27;
+const b = 237.7;
+
+const alpha = ((a * temp) / (b + temp)) + Math.log(humidity/100);
+const dew = (b * alpha) / (a - alpha);
+
+
+/* ========================= */
+/* ===== SOLAR ANGLE ======= */
+/* ========================= */
+
+let sunFactor = 0;
+let isDay = false;
+
+if(now > sunrise && now < sunset){
+  const progress = (now - sunrise) / (sunset - sunrise);
+  sunFactor = Math.sin(progress * Math.PI); // 0–1
+  isDay = true;
+}
+
+
+/* ========================= */
+/* ===== CLOUD EFFECT ====== */
+/* ========================= */
+
+const cloudWarm  = (cloudPercent/100) * 2;     // malam lebih hangat
+const cloudCool  = (cloudPercent/100) * 2.5;   // siang lebih teduh
+
+
+/* ========================= */
+/* ===== DAY (HEAT) ======== */
+/* ========================= */
+
+let feel;
 
 if(isDay){
 
-// Heat index sederhana
-feel = temp + (0.33 * humidity/10) - (0.7 * wind) - 4;
+  feel = temp;
 
-// Matahari terik
-if(weatherMain.includes("clear")){
-feel += 2;
+  // kelembapan (dew point makin tinggi makin gerah)
+  feel += (dew - 18) * 0.4;
+
+  // matahari
+  feel += 6 * sunFactor;
+
+  // angin
+  feel -= wind * 0.7;
+
+  // awan teduhin
+  feel -= cloudCool;
+
+  // hujan
+  if(weatherMain.includes("rain")) feel -= 3;
+
 }
 
-// Mendung → sedikit lebih sejuk
-if(weatherMain.includes("cloud")){
-feel -= 1;
-}
-
-// Hujan → lebih dingin
-if(weatherMain.includes("rain")){
-feel -= 2;
-}
-
-}
 
 /* ========================= */
-/* ===== MALAM (COOL) ===== */
+/* ===== NIGHT (CHILL) ===== */
 /* ========================= */
 
 else{
 
-// Wind chill sederhana
-feel = temp - (wind * 0.7);
+  const v = wind * 3.6;
 
-// Hujan malam lebih dingin
-if(weatherMain.includes("rain")){
-feel -= 1.5;
+  const windChill =
+    13.12 +
+    0.6215*temp -
+    11.37*Math.pow(v,0.16) +
+    0.3965*temp*Math.pow(v,0.16);
+
+  feel = windChill;
+
+  // awan hangatkan
+  feel += cloudWarm;
+
+  // langit cerah → dingin
+  feel -= (1 - cloudPercent/100) * 2;
+
+  // hujan → dingin
+  if(weatherMain.includes("rain")) feel -= 2;
+
 }
 
-// Clear night bisa lebih dingin
-if(weatherMain.includes("clear")){
-feel -= 1;
-}
 
-}
+/* ========================= */
 
 return Math.round(feel);
 }
+
 
 function recommendation(feelLike, weather, wind){
 
@@ -627,80 +727,166 @@ return `
 `;
 }
 
-function calculateUV(feelLike, cloud, wind, visibility, sunrise, sunset){
+function calculateUV(weatherMain, cloud, visibility, sunrise, sunset, lat){
 
-const now = Date.now()/1000;
-const isDay = now >= sunrise && now <= sunset;
+const nowDate = new Date();
+const now = nowDate.getTime()/1000;
 
-/* ========================= */
-/* ===== NIGHT MODE ======== */
-/* ========================= */
-
-if(!isDay){
-return { value: 0, category: "Night Mode 🌙" };
+if(now < sunrise || now > sunset){
+  return { value: 0, category: "Night Mode 🌙" };
 }
 
-/* ========================= */
-/* ===== BASE UV ========= */
-/* ========================= */
-
-let uv = 0;
-
-// Basis dari FeelLike (iklim tropis)
-if(feelLike >= 38) uv = 11;
-else if(feelLike >= 35) uv = 9;
-else if(feelLike >= 32) uv = 8;
-else if(feelLike >= 29) uv = 6;
-else if(feelLike >= 26) uv = 4;
-else if(feelLike >= 23) uv = 2;
-else uv = 1;
 
 /* ========================= */
-/* ===== CLOUD MODIFIER ==== */
+/* ===== DAY OF YEAR ======= */
 /* ========================= */
 
-// Semakin tinggi awan → UV turun
-let cloudFactor = 1 - (cloud / 120);
-if(cloudFactor < 0.2) cloudFactor = 0.2;
+const start = new Date(nowDate.getFullYear(),0,0);
+const diff = nowDate - start;
+const day = Math.floor(diff/86400000);
 
-uv *= cloudFactor;
-
-/* ========================= */
-/* ===== WIND MODIFIER ===== */
-/* ========================= */
-
-// Angin kencang → radiasi terasa sedikit lebih stabil
-if(wind > 10) uv *= 0.9;
-if(wind > 15) uv *= 0.8;
 
 /* ========================= */
-/* ===== VISIBILITY MOD ===== */
+/* ===== DECLINATION ======= */
 /* ========================= */
 
-// Kabut / jarak pandang rendah → UV efektif turun
+const decl =
+23.44 * Math.sin((2*Math.PI/365)*(day-81));
+
+
+/* ========================= */
+/* ===== HOUR ANGLE ======== */
+/* ========================= */
+
+const hour = nowDate.getHours() + nowDate.getMinutes()/60;
+const hourAngle = (hour - 12) * 15; // deg
+
+
+/* ========================= */
+/* ===== SOLAR ELEVATION === */
+/* ========================= */
+
+const latRad = lat*Math.PI/180;
+const decRad = decl*Math.PI/180;
+const hRad = hourAngle*Math.PI/180;
+
+const sinElev =
+Math.sin(latRad)*Math.sin(decRad) +
+Math.cos(latRad)*Math.cos(decRad)*Math.cos(hRad);
+
+const sunFactor = Math.max(0, sinElev);
+
+
+/* ========================= */
+/* ===== BASE UV (physics) == */
+/* ========================= */
+
+let uv = 12 * sunFactor;
+
+
+/* ========================= */
+/* ===== CLOUD MOD ========= */
+/* ========================= */
+
+uv *= (1 - cloud/140);
+uv = Math.max(uv, 0.4); // biar mendung ga 0
+
+
+/* ========================= */
+/* ===== WEATHER MOD ======= */
+/* ========================= */
+
+weatherMain = weatherMain.toLowerCase();
+
+if(weatherMain.includes("rain")) uv *= 0.65;
+if(weatherMain.includes("thunder")) uv *= 0.35;
+if(weatherMain.includes("mist") || weatherMain.includes("fog")) uv *= 0.6;
+
+
+/* ========================= */
+/* ===== VISIBILITY MOD ==== */
+/* ========================= */
+
 if(visibility < 5) uv *= 0.8;
-if(visibility < 2) uv *= 0.6;
+
 
 /* ========================= */
-/* ===== FINAL ROUND ======= */
+/* ===== FINAL ======= */
 /* ========================= */
 
-uv = Math.round(uv);
+uv = Math.max(0, Math.min(12, Math.round(uv)));
+
 
 /* ========================= */
 /* ===== CATEGORY ========= */
 /* ========================= */
 
-let category = "";
+let category="";
+if(uv<=2) category="Low";
+else if(uv<=5) category="Moderate";
+else if(uv<=7) category="High";
+else if(uv<=10) category="Very High";
+else category="Extreme ☀️";
 
-if(uv <= 2) category = "Low";
-else if(uv <= 5) category = "Moderate";
-else if(uv <= 7) category = "High";
-else if(uv <= 10) category = "Very High";
-else category = "Extreme ☀️";
-
-return { value: uv, category: category };
+return { value: uv, category };
 }
+
+function calculateOutdoorScore(feelLike, weatherMain, uv, wind, visibility){
+
+let score = 10;
+
+/* ================= */
+/* ===== UV ======== */
+/* ================= */
+
+if(uv >= 11) score -= 7;
+else if(uv >= 8) score -= 5;
+else if(uv >= 6) score -= 3;
+else if(uv >= 3) score -= 1;
+
+
+/* ================= */
+/* ===== WEATHER ==== */
+/* ================= */
+
+if(weatherMain.includes("thunder")) score -= 9;
+else if(weatherMain.includes("rain")) score -= 7;
+else if(weatherMain.includes("drizzle")) score -= 5;
+else if(weatherMain.includes("mist") || weatherMain.includes("fog")) score -= 2;
+
+
+/* ================= */
+/* ===== WIND ======= */
+/* ================= */
+
+if(wind > 15) score -= 4;
+else if(wind > 10) score -= 2;
+
+
+/* ================= */
+/* ===== VISIBILITY = */
+/* ================= */
+
+if(visibility < 3) score -= 3;
+else if(visibility < 6) score -= 1;
+
+
+/* ================= */
+/* ===== TEMP ======= */
+/* ================= */
+
+if(feelLike > 35) score -= 3;
+else if(feelLike > 32) score -= 2;
+else if(feelLike < 18) score -= 2;
+else if(feelLike < 14) score -= 3;
+
+
+/* clamp */
+score = Math.max(1, Math.min(10, score));
+
+return score;
+}
+
 
 function formatTime(unix){
 const d = new Date(unix * 1000);
