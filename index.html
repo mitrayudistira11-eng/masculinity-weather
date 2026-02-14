@@ -1002,7 +1002,9 @@ function detectCloudType(
   const now = Date.now()/1000;
   const isDay = (now > sunrise && now < sunset);
 
-  const deltaTemp = temp - realFeel;
+  const solarPeak = (sunrise + sunset) / 2;
+  const midDayWindow = 2 * 3600; // 2 jam
+  const isMidDay = Math.abs(now - solarPeak) < midDayWindow;
 
   /* ========================= */
   /* ===== CUMULONIMBUS ====== */
@@ -1021,12 +1023,26 @@ function detectCloudType(
   }
 
   // CB Lewat (anvil lewat tanpa hujan)
-  if(
-     cloudPercent > 75 &&
-     humidity > 85 &&
-     windGust > 5 &&
-     pressure < 1009
-  ){
+  let cbScore = 0;
+
+  if(cloudPercent > 84) cbScore += 1;
+  if(cloudPercent > 94) cbScore += 1;
+
+  if(humidity > 85) cbScore += 1;
+  if(humidity > 90) cbScore += 1;
+
+  if(windGust > 3) cbScore += 1;
+  if(windGust > 6) cbScore += 1;
+
+  if(pressure < 1008) cbScore += 1;
+  if(pressure < 1005) cbScore += 1;
+
+  if(isDay){
+    if(isMidDay && uvValue <= 3) cbScore += 1;
+    if(isMidDay && uvValue <= 2) cbScore += 1;
+  }
+
+  if(cbScore >= 6){
     return "Cumulonimbus Lewat 🌪️";
   }
 
