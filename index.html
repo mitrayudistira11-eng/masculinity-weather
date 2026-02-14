@@ -668,7 +668,7 @@ if (hoursAfterSunrise >= -1 && hoursAfterSunrise <= 2) {
 
   // kekuatan pendinginan tergantung suhu
   // makin rendah suhu → makin terasa dingin
-  let coolStrength = (25 - temp) * 0.15;
+  let coolStrength = (26 - temp) * 0.15;
 
   // batasi biar stabil
   coolStrength = Math.max(0, Math.min(1.5, coolStrength));
@@ -1307,5 +1307,6 @@ return "🌡️";
 
 </body>
 </html>
+
 
 
