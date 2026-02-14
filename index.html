@@ -326,7 +326,7 @@ if(weatherMain.includes("rain") || weatherMain.includes("drizzle")){
 }
 
 /* storm */
-if(weatherMain.includes("thunder")){
+if(weatherMain.includes("thunderstorm")){
   sunMoon.style.display="none";
   clouds.style.opacity=.9;
   fog.style.opacity=.35;
@@ -508,7 +508,7 @@ const cloudType = detectCloudType(
     data.weather[0].main.toLowerCase(),
     data.wind.gust,
     data.main.humidity,
-    visibility,
+    data.main.pressure,
     data.sys.sunrise,
     data.sys.sunset
 );
@@ -652,6 +652,11 @@ if(isDay){
    if(hour >= 7 && hour <= 17){
       solarFactor = uv * 0.3;
    }
+  // beberapa kondisi cuaca → dingin
+  if(weatherMain.includes("drizzle")) feel -= 1;
+  if(weatherMain.includes("rain")) feel -= 2;
+  if(weatherMain.includes("thunderstorm")) feel -= 2;
+if(weatherMain.includes("mist") || weatherMain.includes("fog")) feel -= 0.5;
 
    // Humidity hanya menaikkan kalau suhu > 26
    let humidityFactor = 0;
@@ -664,6 +669,16 @@ if(isDay){
 	if(temp > 25){
       humidityFactor = humidity * 0.03;
    }
+
+// Nonlinear humidity boost
+let nonlinearBoost = 0;
+
+if(temp > 30 && humidity > 85){
+   nonlinearBoost = ((humidity - 85) * 0.05) * (temp - 30);
+}
+
+humidityFactor += nonlinearBoost;
+
 
    // Cloud tebal menurunkan radiasi
    let cloudCooling = cloudPercent * 0.02;
@@ -696,8 +711,11 @@ else{
   // langit cerah → dingin
   feel -= (1 - cloudPercent/100) * 2;
 
-  // hujan → dingin
-  if(weatherMain.includes("rain")) feel -= 2;
+ // beberapa kondisi cuaca → dingin
+  if(weatherMain.includes("drizzle")) feel -= 0.5;
+  if(weatherMain.includes("rain")) feel -= 1;
+  if(weatherMain.includes("thunderstorm")) feel -= 1;
+  if(weatherMain.includes("mist") || weatherMain.includes("fog")) feel -= 0.5;
 
 }
 
@@ -829,7 +847,7 @@ if(weatherMain.includes("rain")){
   reduction += 0.1;
 }
 
-if(weatherMain.includes("thunder")){
+if(weatherMain.includes("thunderstorm")){
   reduction = 0.95;
 }
 
@@ -976,7 +994,7 @@ function detectCloudType(
   weatherMain,
   windGust,
   humidity,
-  visibility,
+  pressure,
   sunrise,
   sunset
 ){
@@ -991,7 +1009,7 @@ function detectCloudType(
   /* ========================= */
 
   // CB Aktif (storm logic dari API)
-  if(weatherMain.includes("thunder")){
+  if(weatherMain.includes("thunderstorm")){
     return "Cumulonimbus Aktif ⛈️";
   }
 
@@ -1007,8 +1025,7 @@ function detectCloudType(
      cloudPercent > 75 &&
      humidity > 85 &&
      windGust > 5 &&
-     visibility < 10 &&
-     deltaTemp >= 2
+     pressure < 1009
   ){
     return "Cumulonimbus Lewat 🌪️";
   }
@@ -1029,8 +1046,12 @@ function detectCloudType(
   /* ===== BROKEN CLOUDS ===== */
   /* ========================= */
 
+  if(cloudPercent >= 60){
+    return "Stratocumulus 🌥️";
+  }
+
   if(cloudPercent >= 40){
-    return "Cumulus / Broken Clouds 🌥️";
+    return "Scattered Cumulus 🌥️";
   }
 
   /* ========================= */
@@ -1056,7 +1077,11 @@ function applyCloudColor(type){
       el.style.color = "#bfbfbf"; // abu mendung
       break;
 
-    case "Cumulus / Broken Clouds 🌥️":
+    case "Stratocumulus 🌥️":
+      el.style.color = "#ffffff"; // putih netral
+      break;
+
+    case "Scattered Cumulus 🌥️":
       el.style.color = "#ffffff"; // putih netral
       break;
 
@@ -1099,7 +1124,7 @@ else if(uv >= 3) score -= 1;
 /* ===== WEATHER ==== */
 /* ================= */
 
-if(weatherMain.includes("thunder")) score -= 9;
+if(weatherMain.includes("thunderstorm")) score -= 9;
 else if(weatherMain.includes("rain")) score -= 7;
 else if(weatherMain.includes("drizzle")) score -= 5;
 else if(weatherMain.includes("mist") || weatherMain.includes("fog")) score -= 2;
