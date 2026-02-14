@@ -208,6 +208,17 @@ height:100%;
 transition:.4s;
 }
 
+.data-row {
+  display:flex;
+  justify-content:space-between;
+  padding:6px 0;
+  font-size:14px;
+}
+
+#cloudType {
+  font-weight:600;
+}
+
 </style>
 </head>
 
@@ -228,6 +239,10 @@ transition:.4s;
 <div class="big" id="temp">--°C</div>
 <div id="desc"></div>
 <div class="section" id="outdoorScore"></div>
+<div class="data-row">
+  <span>Cloud Type:</span>
+  <span id="cloudType">-</span>
+</div>
 <div class="section" id="extra"></div>
 <div class="section" id="recommendation"></div>
 <div class="section" id="warning"></div>
@@ -414,16 +429,29 @@ data.clouds.all
 
 document.getElementById("city").innerText=data.name;
 document.getElementById("temp").innerText=Math.round(data.main.temp)+"°C";
+
+const icon = getWeatherIcon(data.weather[0].main);
+
+const uvData = calculateUV(
+data.weather[0].main.toLowerCase(),
+data.clouds.all,
+(data.visibility ?? 10000) / 1000,
+data.sys.sunrise,
+data.sys.sunset,
+data.coord.lat,
+data.main.humidity
+);
+
 const feel = customFeelLike(
 data.main.temp,
 data.main.humidity,
 data.wind.speed,
 data.weather[0].main.toLowerCase(),
 data.sys.sunrise,
-data.sys.sunset
+data.sys.sunset,
+data.clouds.all,
+uvData.value
 );
-
-const icon = getWeatherIcon(data.weather[0].main);
 
 document.getElementById("desc").innerText=
 "RealFeel "+feel+"°C | "+icon+" "+data.weather[0].description;
@@ -431,6 +459,7 @@ document.getElementById("desc").innerText=
 /* ===== EXTRA DATA ===== */
 
 const wind=data.wind.speed;
+const angin=Math.round(data.wind.speed*3.6);
 const humidity = data.main.humidity;
 /* ===== DEW POINT ===== */
 const a = 17.27;
@@ -450,14 +479,6 @@ const pressure=data.main.pressure;
 const cloud = data.clouds.all;
 const sunrise=formatTime(data.sys.sunrise);
 const sunset=formatTime(data.sys.sunset);
-const uvData = calculateUV(
-data.weather[0].main.toLowerCase(),
-data.clouds.all,
-(data.visibility ?? 10000) / 1000,
-data.sys.sunrise,
-data.sys.sunset,
-data.coord.lat
-);
 
 const outdoorScore = calculateOutdoorScore(
 feel,
@@ -479,12 +500,28 @@ document.getElementById("outdoorScore").innerHTML = `
 </div>
 `;
 
+const cloudType = detectCloudType(
+    data.clouds.all,
+    uvData.value,
+    feel,
+    data.main.temp,
+    data.weather[0].main.toLowerCase(),
+    data.wind.gust,
+    data.main.humidity,
+    visibility,
+    data.sys.sunrise,
+    data.sys.sunset
+);
+
+document.getElementById("cloudType").innerText = cloudType;
+applyCloudColor(cloudType);
+
 let windStatus="Normal";
-if(wind>10) windStatus="Kencang ⚠️";
-if(wind>15) windStatus="Sangat kencang ⛔";
+if(wind>5) windStatus="Kencang ⚠️";
+if(wind>10) windStatus="Sangat kencang ⛔";
 
 document.getElementById("extra").innerHTML=`
-<b>Angin:</b> ${wind} m/s (${windStatus})<br>
+<b>Angin:</b> ${angin} Km/h (${windStatus})<br>
 <b>Kelembapan:</b> ${humidity}%<br>
 <b>Dew Point:</b> ${dewPoint.toFixed(1)}°C (${dewStatus})<br>
 <b>Tekanan:</b> ${pressure} hPa<br>
@@ -527,10 +564,57 @@ document.getElementById("warning").innerHTML="<b>Safety Riding:</b><br>"+warning
 });
 }
 
+function getWindEffect(temp, humidity, wind){
 
-function customFeelLike(temp, humidity, wind, weatherMain, sunrise, sunset, cloudPercent){
+if(wind < 1) return 0; // hampir tidak terasa
+
+let effect = 0;
+
+/* ========================= */
+/* ===== COOLING MODE ====== */
+/* ========================= */
+
+// kalau udara lebih dingin dari kulit
+if(temp < 39){
+
+   // kelembapan rendah → cooling maksimal
+   if(humidity < 60){
+      effect = wind * 0.4;
+   }
+
+   // kelembapan sedang
+   else if(humidity < 80){
+      effect = wind * 0.25;
+   }
+
+   // kelembapan tinggi → cooling lemah
+   else{
+      effect = wind * 0.1;
+   }
+}
+
+/* ========================= */
+/* ===== HOT WIND MODE ===== */
+/* ========================= */
+
+// kalau udara lebih panas dari kulit
+else{
+
+   if(humidity > 70){
+      effect = - (wind * 0.2); // tambah panas
+   }
+   else{
+      effect = - (wind * 0.1);
+   }
+}
+
+return effect;
+}
+
+function customFeelLike(temp, humidity, wind, weatherMain, sunrise, sunset, cloudPercent, uv){
 
 const now = Date.now()/1000;
+const isDay = (now > sunrise && now < sunset);
 
 /* ========================= */
 /* ===== SAFETY FIX ======== */
@@ -554,51 +638,41 @@ const dew = (b * alpha) / (a - alpha);
 /* ===== SOLAR ANGLE ======= */
 /* ========================= */
 
-let sunFactor = 0;
-let isDay = false;
+let hour = new Date().getHours();
+let feel = temp;
 
-if(now > sunrise && now < sunset){
-  const progress = (now - sunrise) / (sunset - sunrise);
-  sunFactor = Math.sin(progress * Math.PI); // 0–1
-  isDay = true;
-}
-
-
-/* ========================= */
-/* ===== CLOUD EFFECT ====== */
-/* ========================= */
-
-const cloudWarm  = (cloudPercent/100) * 2;     // malam lebih hangat
-const cloudCool  = (cloudPercent/100) * 2.5;   // siang lebih teduh
-
-
-/* ========================= */
-/* ===== DAY (HEAT) ======== */
-/* ========================= */
-
-let feel;
+// ======================
+// MODE SIANG / PAGI
+// ======================
 
 if(isDay){
 
-  feel = temp;
+   // Jam sebelum 8 pagi belum ada solar heating maksimal
+   let solarFactor = 0;
+   if(hour >= 7 && hour <= 17){
+      solarFactor = uv * 0.3;
+   }
 
-  // kelembapan (dew point makin tinggi makin gerah)
-  feel += (dew - 18) * 0.4;
+   // Humidity hanya menaikkan kalau suhu > 26
+   let humidityFactor = 0;
+      if(temp > 45){
+      humidityFactor = (humidity - 60) * 0.15;
+   }else 
+	if(temp > 35){
+      humidityFactor = (humidity - 60) * 0.1;
+   }else
+	if(temp > 25){
+      humidityFactor = (humidity - 60) * 0.05;
+   }
 
-  // matahari
-  feel += 6 * sunFactor;
+   // Cloud tebal menurunkan radiasi
+   let cloudCooling = cloudPercent * 0.02;
 
-  // angin
-  feel -= wind * 0.7;
+   let windEffect = getWindEffect(temp, humidity, wind);
 
-  // awan teduhin
-  feel -= cloudCool;
-
-  // hujan
-  if(weatherMain.includes("rain")) feel -= 3;
+   feel = temp + solarFactor + humidityFactor - cloudCooling - windEffect;
 
 }
-
 
 /* ========================= */
 /* ===== NIGHT (CHILL) ===== */
@@ -617,7 +691,7 @@ else{
   feel = windChill;
 
   // awan hangatkan
-  feel += cloudWarm;
+  feel += (cloudPercent/100) * 2;
 
   // langit cerah → dingin
   feel -= (1 - cloudPercent/100) * 2;
@@ -646,42 +720,42 @@ let warning="";
 
 if(feelLike >= 38){
 outfit="Tanktop breathable / kaos boxy dry-fit + flanel tipis (dibuka) + cargo short + high socks + sneakers mesh ringan + sunglasses + sling bag + sunscreen";
-activity="Built Up Custom indoor, Gym ringan pagi/sore. Hindari riding siang terik.";
+activity="Built Up Custom indoor, Gym ringan pagi/sore. Hindari riding/aktivitas outdoor saat siang terik.";
 warning = "⚠️ cuaca panas ekstrem, gunakan alat pendingin ruangan untuk membuat zona suhu nyaman anda tetap stabil.";    
 }
 
 else if(feelLike >= 35){
-outfit="Kaos oversized premium dry-fit + cargo short + sneakers breathable + cap trucker + jam sporty + kacamata hitam";
+outfit="Kaos oversized premium dry-fit + cargo short + sneakers breathable + topi + jam tangan + kacamata hitam";
 activity="Riding Motor Custom jarak dekat sore hari, Hangout, atau Built Up Custom.";
 }
 
 else if(feelLike >= 32){
-outfit="Workshirt lengan pendek + inner polos + chino slim / cargo tipis + sepatu casual leather / sneakers klasik + jam analog";
+outfit="Workshirt lengan pendek + chino slim / cargo tipis + sepatu casual kulit / sneakers klasik + jam tangan";
 activity="Riding Motor Custom, Skateboarding, atau Hangout sore.";
 }
 
 else if(feelLike >= 29){
-outfit="Workshirt digulung + jeans straight fit ringan + boots ringan / sneakers klasik + sling bag minimalis";
+outfit="Workshirt digulung + jeans straight fit ringan + sepatu kulit ringan / sneakers klasik + sling bag minimalis";
 activity="Riding Motor Custom, Memanah outdoor, atau Gym.";
 }
 
-else if(feelLike >= 26){
-outfit="Coach jacket tipis / rompi + kaos fit + jeans gelap + boots riding + jam field watch";
-activity="Camping ringan, Climbing, Riding jarak menengah.";
-}
-
-else if(feelLike >= 23){
-outfit="Jaket Kulit / denim + inner thermal tipis + celana tebal + boots leather + sarung tangan riding";
-activity="Taktikal training ringan, Memanah, atau Built Up Custom.";
+else if(feelLike >= 25){
+outfit="Coach jacket tipis / rompi / jas + kemeja flanel / tebal + jeans + boots + jam tangan";
+activity="Camping, Climbing, Riding Motor Custom, Riding jarak menengah.";
 }
 
 else if(feelLike >= 20){
-outfit="Layering: jacket tebal / mantel + celana tebal + boots + beanie + sarung tangan";
-activity="Climbing dingin, perawatan motor detail, latihan taktik.";
+outfit="Jaket Kulit / denim + kaos tebal + celana chinos + boots + sarung tangan";
+activity="Taktikal training ringan, Memanah, atau Built Up Motor Custom.";
+}
+
+else if(feelLike >= 15){
+outfit="Layering: jacket tebal / mantel + celana chinos tebal + boots + sarung tangan";
+activity="Climbing dingin, perawatan motor detail, latihan taktikal.";
 }
 
 else{
-outfit="Mantel tebal full thermal + celana tebal + boots + beanie + neck warmer";
+outfit="Mantel tebal full thermal + celana thermal + boots + beanie + neck warmer";
 activity="Fokus indoor: Built Up Custom detail, perencanaan proyek, latihan taktik teori, gym, bobok.";
 }
 
@@ -702,14 +776,19 @@ warning += " ⚠️ Aspal lembap. Jaga jarak pengereman dan hindari ban botak.";
 
 if(weather.includes("thunderstorm")){
 activity = "Tunda semua aktivitas outdoor. Fokus indoor.";
-warning = "⛔ Badai petir! Sangat tidak disarankan riding motor custom.";
+warning = "⛔ Badai petir! Sangat tidak disarankan mengendarai motor custom.";
+}
+
+if(weather.includes("mist") || weather.includes("fog")){
+activity = "Batasi kegiatan outdoor karena jarak pandang berkurang!";
+warning = "⚠️ Cuaca berkabut! Disarankan untuk mengendarai motor custom secara berhati-hati karena jarak pandang berkurang!";
 }
 
 if(weather.includes("cloud") && feelLike >= 28){
 activity += " Cuaca mendukung aktivitas outdoor tanpa panas berlebih.";
 }
 
-if(wind > 8){
+if(wind > 10){
 warning += " 🌬️ Angin cukup kencang, waspadai crosswind saat riding.";
 }
 
@@ -727,7 +806,58 @@ return `
 `;
 }
 
-function calculateUV(weatherMain, cloud, visibility, sunrise, sunset, lat){
+function getCloudReduction(cloudPercent, weatherMain, visibility, humidity){
+
+let reduction = 0;
+
+/* ============================= */
+/* ===== NONLINEAR CURVE ======= */
+/* ============================= */
+
+reduction = 0.05 + (cloudPercent / 100) * 0.6;
+if(cloudPercent > 90){
+  reduction += 0.03;
+}
+
+/* ============================= */
+/* ===== WEATHER OVERRIDE ====== */
+/* ============================= */
+
+weatherMain = weatherMain.toLowerCase();
+
+if(weatherMain.includes("rain")){
+  reduction += 0.1;
+}
+
+if(weatherMain.includes("thunder")){
+  reduction = 0.95;
+}
+
+if(weatherMain.includes("mist") || weatherMain.includes("fog")){
+  reduction += 0.15;
+}
+
+/* ============================= */
+/* ===== ATMOSPHERIC FACTOR ==== */
+/* ============================= */
+
+// jarak pandang rendah → partikel tinggi
+if(visibility < 5){
+  reduction += 0.1;
+}
+
+// humidity sangat tinggi → difusi cahaya
+if(humidity > 90){
+  reduction += 0.05;
+}
+
+/* clamp biar gak over */
+reduction = Math.min(reduction, 0.97);
+
+return reduction;
+}
+
+function calculateUV(weatherMain, cloud, visibility, sunrise, sunset, lat, humidity){
 
 const nowDate = new Date();
 const now = nowDate.getTime()/1000;
@@ -788,8 +918,18 @@ let uv = 12 * sunFactor;
 /* ===== CLOUD MOD ========= */
 /* ========================= */
 
-uv *= (1 - cloud/140);
-uv = Math.max(uv, 0.4); // biar mendung ga 0
+/* ========================= */
+/* ===== NONLINEAR REDUCTION */
+/* ========================= */
+
+let reduction = getCloudReduction(
+  cloud,
+  weatherMain,
+  visibility,
+  humidity ?? 80
+);
+
+uv *= (1 - reduction);
 
 
 /* ========================= */
@@ -798,16 +938,13 @@ uv = Math.max(uv, 0.4); // biar mendung ga 0
 
 weatherMain = weatherMain.toLowerCase();
 
-if(weatherMain.includes("rain")) uv *= 0.65;
-if(weatherMain.includes("thunder")) uv *= 0.35;
-if(weatherMain.includes("mist") || weatherMain.includes("fog")) uv *= 0.6;
 
 
 /* ========================= */
 /* ===== VISIBILITY MOD ==== */
 /* ========================= */
 
-if(visibility < 5) uv *= 0.8;
+
 
 
 /* ========================= */
@@ -829,6 +966,119 @@ else if(uv<=10) category="Very High";
 else category="Extreme ☀️";
 
 return { value: uv, category };
+}
+
+function detectCloudType(
+  cloudPercent,
+  uvValue,
+  realFeel,
+  temp,
+  weatherMain,
+  windGust,
+  humidity,
+  visibility,
+  sunrise,
+  sunset
+){
+
+  const now = Date.now()/1000;
+  const isDay = (now > sunrise && now < sunset);
+
+  const deltaTemp = temp - realFeel;
+
+  /* ========================= */
+  /* ===== CUMULONIMBUS ====== */
+  /* ========================= */
+
+  // CB Aktif (storm logic dari API)
+  if(weatherMain.includes("thunder")){
+    return "Cumulonimbus Aktif ⛈️";
+  }
+
+  // CB Hujan tanpa petir
+  if(weatherMain.includes("rain") &&
+     cloudPercent > 80 &&
+     windGust > 5){
+    return "Cumulonimbus Pasif 🌩️";
+  }
+
+  // CB Lewat (anvil lewat tanpa hujan)
+  if(
+     cloudPercent > 75 &&
+     humidity > 85 &&
+     windGust > 5 &&
+     visibility < 10 &&
+     deltaTemp >= 2
+  ){
+    return "Cumulonimbus Lewat 🌪️";
+  }
+
+  /* ========================= */
+  /* ===== STRATIFORM ======== */
+  /* ========================= */
+
+  if(
+     cloudPercent > 85 &&
+     windGust < 5 &&
+     humidity > 70
+  ){
+    return "Stratiform Overcast ☁️";
+  }
+
+  /* ========================= */
+  /* ===== BROKEN CLOUDS ===== */
+  /* ========================= */
+
+  if(cloudPercent >= 40){
+    return "Cumulus / Broken Clouds 🌥️";
+  }
+
+  /* ========================= */
+  /* ===== CLEAR SKY ========= */
+  /* ========================= */
+
+  return isDay ? "Clear Sky ☀️" : "Clear Night 🌙";
+}
+
+function applyCloudColor(type){
+
+  const el = document.getElementById("cloudType");
+
+  el.style.fontWeight = "600";
+
+  switch(type){
+
+    case "Cumulonimbus ⛈️":
+      el.style.color = "#ff4d4d"; // merah badai
+      break;
+
+    case "Stratiform Overcast ☁️":
+      el.style.color = "#bfbfbf"; // abu mendung
+      break;
+
+    case "Cumulus / Broken Clouds 🌥️":
+      el.style.color = "#ffffff"; // putih netral
+      break;
+
+    case "Clear Sky ☀️":
+      el.style.color = "#ffd633"; // kuning cerah
+      break;
+
+    default:
+      el.style.color = "#ffffff";
+
+case "Cumulonimbus Aktif ⛈️":
+case "Cumulonimbus Pasif 🌩️":
+case "Cumulonimbus Lewat 🌪️":
+  el.style.color = "#ff4d4d";
+  break;
+
+case "Clear Night 🌙":
+  el.style.color = "#aaccff";
+  break;
+
+  }
+
 }
 
 function calculateOutdoorScore(feelLike, weatherMain, uv, wind, visibility){
@@ -859,8 +1109,8 @@ else if(weatherMain.includes("mist") || weatherMain.includes("fog")) score -= 2;
 /* ===== WIND ======= */
 /* ================= */
 
-if(wind > 15) score -= 4;
-else if(wind > 10) score -= 2;
+if(wind > 10) score -= 2;
+else if(wind > 5) score -= 1;
 
 
 /* ================= */
