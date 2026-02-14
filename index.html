@@ -658,12 +658,10 @@ let feel = temp;
 // MODE SIANG / PAGI
 // ======================
 
-if(isDay){
-
 let morningCoolMemory = 0;
 
 if (hoursAfterSunrise >= -1 && hoursAfterSunrise <= 2) {
-	let coolhour = 0 + (hoursAfterSunrise - 1)
+	let coolhour = 0 + (hoursAfterSunrise + 1)
 
   // decay linear 1 → 0 selama 3 jam
   let decay = 1 - (coolhour / 3);
@@ -679,6 +677,8 @@ if (hoursAfterSunrise >= -1 && hoursAfterSunrise <= 2) {
 }
 
 feel += morningCoolMemory;
+
+if(isDay){
 
    // Jam sebelum 8 pagi belum ada solar heating maksimal
    let solarFactor = 0;
@@ -1307,4 +1307,5 @@ return "🌡️";
 
 </body>
 </html>
+
 
