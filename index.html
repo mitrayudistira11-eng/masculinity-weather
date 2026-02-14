@@ -604,7 +604,7 @@ else{
       effect = - (wind * 0.2); // tambah panas
    }
    else{
-      effect = - (wind * 0.1);
+      effect = - (wind * 0.05);
    }
 }
 
@@ -615,6 +615,9 @@ function customFeelLike(temp, humidity, wind, weatherMain, sunrise, sunset, clou
 
 const now = Date.now()/1000;
 const isDay = (now > sunrise && now < sunset);
+
+let hoursAfterSunset = (now - sunset) / 3600000;
+if (hoursAfterSunset < 0) hoursAfterSunset = 0;
 
 /* ========================= */
 /* ===== SAFETY FIX ======== */
@@ -697,25 +700,94 @@ else{
 
   const v = wind * 3.6;
 
-  const windChill =
+let windChillEffect = 0;
+
+if (temp <= 20 && v >= 10) {
+  const wc =
     13.12 +
-    0.6215*temp -
-    11.37*Math.pow(v,0.16) +
-    0.3965*temp*Math.pow(v,0.16);
+    0.6215 * temp -
+    11.37 * Math.pow(v, 0.16) +
+    0.3965 * temp * Math.pow(v, 0.16);
 
-  feel = windChill;
+  windChillEffect = wc - temp;
+feel += windChillEffect
+}else{
+feel -= (v * 0.05);
+}
 
-  // awan hangatkan
-  feel += (cloudPercent/100) * 2;
+let nightFactor = 0;
 
-  // langit cerah → dingin
-  feel -= (1 - cloudPercent/100) * 2;
+if (hoursAfterSunset <= 1) {
+  nightFactor = 0; // Netral
+}
+else if (hoursAfterSunset <= 3) {
+  nightFactor = (hoursAfterSunset - 1) / 2; // 0 → 1 secara gradual
+}
+else {
+  nightFactor = 1; // Stabil penuh
+}
+
+let surfaceMemory = 0;
+
+if (hoursAfterSunset <= 3) {
+
+  // decay 1 → 0 dalam 3 jam
+  let decay = 1 - (hoursAfterSunset / 3);
+
+  // Estimasi kekuatan panas dari suhu saat ini
+  // 25°C jadi titik netral
+  let heatStrength = (temp - 25) * 0.15;
+
+  // Clamp biar nggak liar
+  heatStrength = Math.max(0, Math.min(1.8, heatStrength));
+
+  surfaceMemory = heatStrength * decay;
+}
+
+feel += surfaceMemory;
+
+
+// PENGARUH AWAN
+
+// Normalisasi 0–100 → -1 sampai +1
+let cloudNormalized = (cloudPercent - 50) / 50;
+
+// Clamp biar aman
+cloudNormalized = Math.max(-1, Math.min(1, cloudNormalized));
+
+// Skala maksimal 2°C
+let cloudEffect = cloudNormalized * 2 * nightFactor;
+
+feel += cloudEffect;
+
+let humidityEffect = 0;
+
+if (humidity > 70) {
+
+  let tempDelta = temp - 25;
+
+  // Skala kelembapan (70–100%)
+  let humidityStrength = (humidity - 70) / 30; 
+  // 70% = 0
+  // 100% = 1
+
+  humidityEffect = tempDelta * humidityStrength;
+
+  // Batasi maksimum ±3°C
+  humidityEffect = Math.max(-3, Math.min(3, humidityEffect));
+}
+
+if (humidityEffect > 0){
+feel += humidityEffect * 0.8;
+}else{
+feel += humidityEffect;
+}
 
  // beberapa kondisi cuaca → dingin
   if(weatherMain.includes("drizzle")) feel -= 0.5;
   if(weatherMain.includes("rain")) feel -= 1;
   if(weatherMain.includes("thunderstorm")) feel -= 1;
-  if(weatherMain.includes("mist") || weatherMain.includes("fog")) feel -= 0.5;
+  if(weatherMain.includes("mist") || weatherMain.includes("fog")) feel -= 1;
 
 }
 
