@@ -662,14 +662,15 @@ if(isDay){
 
 let morningCoolMemory = 0;
 
-if (hoursAfterSunrise >= 0 && hoursAfterSunrise <= 3) {
+if (hoursAfterSunrise >= -1 && hoursAfterSunrise <= 2) {
+	let coolhour = 0 + (hoursAfterSunrise - 1)
 
   // decay linear 1 → 0 selama 3 jam
-  let decay = 1 - (hoursAfterSunrise / 3);
+  let decay = 1 - (coolhour / 3);
 
   // kekuatan pendinginan tergantung suhu
   // makin rendah suhu → makin terasa dingin
-  let coolStrength = (28 - temp) * 0.15;
+  let coolStrength = (25 - temp) * 0.15;
 
   // batasi biar stabil
   coolStrength = Math.max(0, Math.min(1.5, coolStrength));
@@ -1306,3 +1307,4 @@ return "🌡️";
 
 </body>
 </html>
+
