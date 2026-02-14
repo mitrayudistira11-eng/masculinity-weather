@@ -619,6 +619,16 @@ const isDay = (now > sunrise && now < sunset);
 let hoursAfterSunset = (now - sunset) / 3600000;
 if (hoursAfterSunset < 0) hoursAfterSunset = 0;
 
+// sunriseTime dalam milidetik (kalau dari API unix detik × 1000)
+let sunriseDate = new Date(sunrise);
+let nowDate = new Date(now);
+
+// selisih jam
+let hoursAfterSunrise = (nowDate - sunriseDate) / (1000 * 60 * 60);
+
+// kalau masih sebelum sunrise → set negatif
+// nanti kita kontrol di logic
+
 /* ========================= */
 /* ===== SAFETY FIX ======== */
 /* ========================= */
@@ -649,6 +659,25 @@ let feel = temp;
 // ======================
 
 if(isDay){
+
+let morningCoolMemory = 0;
+
+if (hoursAfterSunrise >= 0 && hoursAfterSunrise <= 3) {
+
+  // decay linear 1 → 0 selama 3 jam
+  let decay = 1 - (hoursAfterSunrise / 3);
+
+  // kekuatan pendinginan tergantung suhu
+  // makin rendah suhu → makin terasa dingin
+  let coolStrength = (28 - temp) * 0.15;
+
+  // batasi biar stabil
+  coolStrength = Math.max(0, Math.min(1.5, coolStrength));
+
+  morningCoolMemory = -coolStrength * decay;
+}
+
+feel += morningCoolMemory;
 
    // Jam sebelum 8 pagi belum ada solar heating maksimal
    let solarFactor = 0;
@@ -750,10 +779,10 @@ feel += surfaceMemory;
 // PENGARUH AWAN
 
 // Normalisasi 0–100 → -1 sampai +1
-let cloudNormalized = (cloudPercent - 50) / 50;
+let cloudNormalized = (cloudPercent - 75) / 50;
 
 // Clamp biar aman
-cloudNormalized = Math.max(-1, Math.min(1, cloudNormalized));
+cloudNormalized = Math.max(-3, Math.min(1, cloudNormalized));
 
 // Skala maksimal 2°C
 let cloudEffect = cloudNormalized * 2 * nightFactor;
