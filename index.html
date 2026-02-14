@@ -656,13 +656,13 @@ if(isDay){
    // Humidity hanya menaikkan kalau suhu > 26
    let humidityFactor = 0;
       if(temp > 45){
-      humidityFactor = (humidity - 60) * 0.15;
+      humidityFactor = humidity * 0.1;
    }else 
 	if(temp > 35){
-      humidityFactor = (humidity - 60) * 0.1;
+      humidityFactor = humidity * 0.07;
    }else
 	if(temp > 25){
-      humidityFactor = (humidity - 60) * 0.05;
+      humidityFactor = humidity * 0.03;
    }
 
    // Cloud tebal menurunkan radiasi
