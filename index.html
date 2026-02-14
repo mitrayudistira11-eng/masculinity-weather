@@ -619,17 +619,17 @@ function customFeelLike(temp, humidity, wind, gust, weatherMain, sunrise, sunset
 const now = Date.now()/1000;
 const isDay = (now > sunrise && now < sunset);
 
-let hoursAfterSunset = (now - sunset) / 3600000;
-if (hoursAfterSunset < 0) hoursAfterSunset = 0;
+// Ambil waktu sekarang dalam DETIK (Unix)
 
-// sunriseTime dalam milidetik (kalau dari API unix detik × 1000)
-let sunriseDate = new Date(sunrise);
-let nowDate = new Date(now);
+// Hitung selisih jam secara langsung (Detik ke Jam)
+let hoursAfterSunrise = (now - sunrise) / 3600;
+let hoursAfterSunset = (now - sunset) / 3600;
 
-// selisih jam
-let hoursAfterSunrise = (nowDate - sunriseDate) / (1000 * 60 * 60);
+// Handle jika sunset kemarin (lewat tengah malam)
+if (now < sunset && hoursAfterSunset < -12) {
+    hoursAfterSunset += 24;
+}
 
-// kalau masih sebelum sunrise → set negatif
 // nanti kita kontrol di logic
 
 /* ========================= */
@@ -661,22 +661,41 @@ let feel = temp;
 // MODE SIANG / PAGI
 // ======================
 
+/* ============================================= */
+/* ===== UNIVERSAL PRE-MORNING COOL ENGINE ===== */
+/* ============================================= */
+
 let morningCoolMemory = 0;
 
-if (hoursAfterSunrise >= -1 && hoursAfterSunrise <= 2) {
-	let coolhour = 0 + (hoursAfterSunrise + 1)
+if (hoursAfterSunrise >= -3 && hoursAfterSunrise <= 1) {
+    
+    // 1. DINAMIKA KEKUATAN (Strength berdasarkan Langit)
+    // Di iklim kering/cerah, radiasi panas hilang lebih cepat (lebih dingin).
+    // Di iklim mendung/lembab, penurunan suhu lebih tertahan.
+    let skyFactor = 1 + ( (100 - cloudPercent) / 100 ); // Range 1.0 (mendung) s/d 2.0 (cerah)
+    
+    // Base strength yang menyesuaikan suhu lokal
+    let baseStrength = Math.max(0, (28 - temp) * 0.5); 
+    let finalStrength = baseStrength * skyFactor;
 
-  // decay linear 1 → 0 selama 3 jam
-  let decay = 1 - (coolhour / 3);
+    // Batasi agar tidak ekstrem (Max 5 derajat pengurang)
+    finalStrength = Math.min(5, finalStrength);
 
-  // kekuatan pendinginan tergantung suhu
-  // makin rendah suhu → makin terasa dingin
-  let coolStrength = (25 - temp) * 0.15;
-
-  // batasi biar stabil
-  coolStrength = Math.max(0, Math.min(1.5, coolStrength));
-
-  morningCoolMemory = -coolStrength * decay;
+    // 2. LOGIKA 3 TAHAP (Progressif)
+    if (hoursAfterSunrise < -1.5) {
+        // Tahap Awal: Dini hari
+        let progress = (hoursAfterSunrise + 3) / 1.5; 
+        morningCoolMemory = -(finalStrength * 0.4 * progress);
+    }
+    else if (hoursAfterSunrise >= -1.5 && hoursAfterSunrise <= 0.5) {
+        // Tahap Puncak: Fajar (Titik terdingin)
+        morningCoolMemory = -finalStrength;
+    }
+    else {
+        // Tahap Akhir: Pasca Sunrise (Mencair)
+        let decay = 1 - (hoursAfterSunrise - 0.5) / 0.5;
+        morningCoolMemory = -(finalStrength * decay);
+    }
 }
 
 feel += morningCoolMemory;
@@ -747,7 +766,7 @@ feel -= cloudCooling;
 
    let windEffect = getWindEffect(temp, humidity, wind, gust);
 
-   feel = temp + solarFactor + humidityFactor - cloudCooling - windEffect;
+   feel += solarFactor + humidityFactor - cloudCooling - windEffect;
 
 }
 
@@ -772,7 +791,10 @@ if (temp <= 10 && v >= 5) {
 feel += windChillEffect
 }else{
 let intensity = 0.05 + (Math.max(0, 25 - temp) * 0.015); 
-feel -= (Math.sqrt(v) * (intensity * 2.5));
+let windEffectNight = (Math.sqrt(v) * (intensity * 2.5));
+feel -= windEffectNight
+
+console.log(`5. Wind Effect: ${windEffectNight.toFixed(2)}°C`);
 }
 
 let nightFactor = 0;
@@ -854,8 +876,23 @@ feel += humidityEffect;
   if(weatherMain.includes("thunderstorm")) feel -= 2;
   if(weatherMain.includes("mist") || weatherMain.includes("fog")) feel -= 1.2;
 
+/* ========================= */
+    /* ===== DEBUG CONSOLE ====== */
+    /* ========================= */
+    console.log(`1. Morning Memory: ${morningCoolMemory.toFixed(2)}°C`);
+    console.log(`3. Humidity Effect: ${humidityEffect.toFixed(2)}°C`);
+    console.log(`4. Cloud Effect: ${cloudEffect.toFixed(2)}°C`);
+
 }
 
+/* ========================= */
+    /* ===== DEBUG CONSOLE ====== */
+    /* ========================= */
+    console.log(`--- WEATHER DEBUG [${isDay ? 'SIANG' : 'MALAM'}] ---`);
+    console.log(`Suhu Dasar: ${temp}°C`);
+
+    console.log(`TOTAL REALFEEL: ${Math.round(feel)}°C`);
+    console.log(`-----------------------------------`);
 
 /* ========================= */
 
