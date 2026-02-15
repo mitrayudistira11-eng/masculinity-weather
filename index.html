@@ -1039,14 +1039,15 @@ function getCloudReduction(cloudPercent, weatherMain, visibility, humidity){
 
 let reduction = 0;
 
-/* ============================= */
-/* ===== NONLINEAR CURVE ======= */
-/* ============================= */
-
-reduction = 0.05 + (cloudPercent / 100) * 0.6;
-if(cloudPercent > 90){
-  reduction += 0.03;
-}
+/* ======================================= */
+    /* 1. CLOUD FACTOR (Dibuat Lebih Ringan)   */
+    /* ======================================= */
+    // Pengali diturunkan dari 0.6 ke 0.52 agar UV tidak drop terlalu dalam saat kering
+    reduction = 0.05 + (cloudPercent / 100) * 0.52;
+    
+    if (cloudPercent > 90) {
+        reduction += 0.03; // Bonus penalti overcast tetap ada
+    }
 
 /* ============================= */
 /* ===== WEATHER OVERRIDE ====== */
@@ -1055,7 +1056,7 @@ if(cloudPercent > 90){
 weatherMain = weatherMain.toLowerCase();
 
 if(weatherMain.includes("rain")){
-  reduction += 0.1;
+  reduction += 0.12;
 }
 
 if(weatherMain.includes("thunderstorm")){
@@ -1063,25 +1064,28 @@ if(weatherMain.includes("thunderstorm")){
 }
 
 if(weatherMain.includes("mist") || weatherMain.includes("fog")){
-  reduction += 0.15;
+  // Jika visibility masih terbaca tinggi (> 5km), kita paksa turun ke 5km
+  // untuk memicu hitungan nonlinear di bawah secara maksimal
+  visibility = Math.min(visibility, 5); 
+  reduction += 0.05; // Bonus kecil untuk efek hamburan partikel air padat
 }
 
 /* ============================= */
 /* ===== ATMOSPHERIC FACTOR ==== */
 /* ============================= */
 
-// Jarak pandang rendah → partikel tinggi (Nonlinear)
-if (visibility < 10) {
-    // Semakin rendah visibility, kenaikan reduction semakin tajam
-    reduction += Math.pow((10 - visibility) / 10, 2) * 0.15;
-}
+// Jarak pandang rendah (Aerosol/Haze)
+    if (visibility < 10) {
+        // Semakin rendah visibility, kenaikan reduction semakin tajam (eksponensial)
+        reduction += Math.pow((10 - visibility) / 10, 2) * 0.15;
+    }
 
-// Humidity (Nonlinear Reduction)
-// Menggunakan kurva eksponensial: efek terasa nyata setelah melewati 70%
-if (humidity > 70) {
-    const humidFactor = (humidity - 70) / 30; // Rentang 0.0 s/d 1.0
-    reduction += Math.pow(humidFactor, 2) * 0.12; 
-}
+    // Humidity (Efek Difusi Uap Air)
+    if (humidity > 70) {
+        const humidFactor = (humidity - 70) / 30; // Rentang 0.0 s/d 1.0
+        // Jika humidity 100%, reduction bertambah 0.15 (lebih kuat dari sebelumnya)
+        reduction += Math.pow(humidFactor, 2) * 0.15; 
+    }
 
 /* clamp biar gak over */
 reduction = Math.min(reduction, 0.97);
