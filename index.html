@@ -718,6 +718,8 @@ if (hour >= 7 && hour <= 17) {
 
     // 3. Skala Maksimal (Misal +4°C saat tengah hari bolong)
     solarFactor = timeWeight * uvWeight * 4.0;
+
+console.log(`Solar Factor: ${solarFactor.toFixed(2)}°C`);
 }
 
   // beberapa kondisi cuaca → dingin
@@ -749,24 +751,44 @@ if(weatherMain.includes("mist") || weatherMain.includes("fog")) feel -= 0.1;
         // Logika Pendinginan (Chill)
         // Semakin lembap, semakin dinginnya "nusuk" secara nonlinear
         humidityFactor = (nonLinearHumid * 0.005) * tempDelta; 
+
     }
 
-// 1. Normalisasi 0-100 ke 0-1
-let cloudFraction = cloudPercent / 100;
+console.log(`humidity Factor: ${humidityFactor.toFixed(2)}°C`);
 
-// 2. CloudCooling Nonlinear (Akar Kuadrat)
-// Sedikit awan langsung memotong terik matahari secara signifikan
-let cloudCoolingFactor = Math.sqrt(cloudFraction);
+//Cloud Cooling Bertahap
 
-// 3. Skala Maksimal 3°C (Sesuai permintaanmu)
-let cloudCooling = cloudCoolingFactor * 3.0;
+// 1. Hitung total durasi siang hari dalam JAM
+    const daylightDurationHours = (sunset - sunrise) / 3600;
 
-// 4. Update RealFeel
-feel -= cloudCooling;
+    // 2. Tentukan posisi waktu (Progress) dari 0 (Sunrise) ke 1 (Sunset)
+    // hoursAfterSunrise sudah dalam satuan jam, jadi tinggal bagi total durasi
+    let dayProgress = hoursAfterSunrise / daylightDurationHours;
+
+    // 3. Gunakan Sinus untuk mendapatkan puncak di tengah hari (Midday)
+    let hourFactor = Math.sin(dayProgress * Math.PI);
+
+    // 4. Kalkulasi Final Cooling
+    let cloudFraction = cloudPercent / 100;
+    let cloudWeight = Math.sqrt(cloudFraction); 
+    
+    // Potongan 3 derajat hanya maksimal di titik tengah hari
+    let cloudCooling = cloudWeight * 3.0 * hourFactor;
+
+    feel -= cloudCooling;
+
+    /* LOG UNTUK PENGECEKAN */
+    console.log(`--- DYNAMIC CLOUD MODE ---`);
+    console.log(`Progress Siang: ${(dayProgress * 100).toFixed(1)}%`);
+    console.log(`Cloud Cooling: -${cloudCooling.toFixed(2)}°C`);
 
    let windEffect = getWindEffect(temp, humidity, wind, gust);
 
-   feel += solarFactor + humidityFactor - cloudCooling - windEffect;
+console.log(`Wind Effect: ${windEffect.toFixed(2)}°C`);
+
+   feel += solarFactor + humidityFactor - windEffect;
+
+console.log(`Feel Akhir: ${feel.toFixed(2)}°C`);
 
 }
 
@@ -791,10 +813,10 @@ if (temp <= 10 && v >= 5) {
 feel += windChillEffect
 }else{
 let intensity = 0.05 + (Math.max(0, 25 - temp) * 0.015); 
-let windEffectNight = (Math.sqrt(v) * (intensity * 2.5));
+let windEffectNight = (Math.sqrt(v) * (intensity * 1.7));
 feel -= windEffectNight
 
-console.log(`5. Wind Effect: ${windEffectNight.toFixed(2)}°C`);
+console.log(`5. Wind Effect: ${(windChillEffect !== 0 ? windChillEffect : -windEffectNight).toFixed(2)}°C`);
 }
 
 let nightFactor = 0;
@@ -828,23 +850,39 @@ if (hoursAfterSunset <= 3) {
 
 feel += surfaceMemory;
 
+//Cloud Night Effect
 
-// 1. Normalisasi 0-100 ke 0-1
-let cloudFraction = cloudPercent / 100;
+// 1. Ambil Progress Malam (Mencapai puncak dalam 6 jam)
+    let nightStrength = Math.min(1.0, hoursAfterSunset / 6); 
 
-// 2. CloudWeight (Nonlinear)
-// Kita pakai pangkat 1.5 biar kurvanya gak terlalu ekstrem tapi tetap berasa bedanya
-let cloudWeight = Math.pow(cloudFraction, 1.5); 
+// 2. Sinergi dengan Pre-Morning Cool (Dawn Fade)
+    // hoursAfterSunrise akan bernilai NEGATIF sebelum matahari terbit.
+    // Misal: Jam 04:00 pagi, hoursAfterSunrise mungkin bernilai -2.0
+    
+    // Kita mulai memudarkan efek awan 4 jam sebelum sunrise (sesuai maumu)
+    if (hoursAfterSunrise > -4) { 
+        // Saat jam 02:00 pagi (hoursAfterSunrise = -4), dawnFade = 1.0
+        // Saat jam 06:00 pagi (hoursAfterSunrise = 0), dawnFade = 0.0
+        let dawnFade = Math.abs(hoursAfterSunrise) / 4; 
+        
+        nightStrength *= Math.max(0, Math.min(1.0, dawnFade));
+    }
 
-// 3. Menghitung Cloud Effect
-// Kita geser titik tengahnya. Jika cloudWeight > 0.5 (mendung), hasilnya positif.
-// Jika cloudWeight < 0.5 (cerah), hasilnya negatif.
-let cloudEffect = (cloudWeight - 0.5) * 2 * 2.0 * nightFactor;
+// 3. Hitung Cloud Effect
+    let cloudFraction = cloudPercent / 100;
+    let cloudWeight = Math.pow(cloudFraction, 1.5); 
+    let baseEffect = (cloudWeight - 0.5) * 2 * 2.0 * nightFactor;
+    
+    let cloudEffect = baseEffect * nightStrength;
 
-// 4. Clamp (Biar gak lewat dari rentang -2 sampai +2)
-cloudEffect = Math.max(-2, Math.min(2, cloudEffect));
+    // 4. Apply
+    cloudEffect = Math.max(-2, Math.min(2, cloudEffect));
+    feel += cloudEffect;
 
-feel += cloudEffect;
+console.log(`Time to Sunrise: ${Math.abs(hoursAfterSunrise).toFixed(2)} hours`);
+    console.log(`Night Strength : ${(nightStrength * 100).toFixed(1)}%`);
+    console.log(`Base Potential : ${baseEffect.toFixed(2)}°C`);
+    console.log(`Final Effect   : ${cloudEffect.toFixed(2)}°C`);
 
 let humidityEffect = 0;
 
@@ -881,7 +919,6 @@ feel += humidityEffect;
     /* ========================= */
     console.log(`1. Morning Memory: ${morningCoolMemory.toFixed(2)}°C`);
     console.log(`3. Humidity Effect: ${humidityEffect.toFixed(2)}°C`);
-    console.log(`4. Cloud Effect: ${cloudEffect.toFixed(2)}°C`);
 
 }
 
