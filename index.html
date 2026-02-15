@@ -439,7 +439,8 @@ data.clouds.all,
 data.sys.sunrise,
 data.sys.sunset,
 data.coord.lat,
-data.main.humidity
+data.main.humidity,
+data.main.pressure
 );
 
 const feel = customFeelLike(
@@ -1035,7 +1036,7 @@ return `
 `;
 }
 
-function getCloudReduction(cloudPercent, weatherMain, visibility, humidity){
+function getCloudReduction(cloudPercent, weatherMain, visibility, humidity, pressure){
 
 let reduction = 0;
 
@@ -1087,13 +1088,25 @@ if(weatherMain.includes("mist") || weatherMain.includes("fog")){
         reduction += Math.pow(humidFactor, 2) * 0.15; 
     }
 
+  /* ======================================= */
+/* 4. PRESSURE SENSOR (The "Storm" Detector) */
+/* ======================================= */
+
+// pressure biasanya 1013, di bawah 1008 biasanya mulai badai/hujan
+if (pressure < 1009) {
+    // Semakin rendah tekanan, semakin tebal awannya (Nonlinear)
+    const pressureDrop = 1009 - pressure; // Contoh: 1009 - 1006 = 3
+    const pressurePenalty = Math.pow(pressureDrop / 5, 2) * 0.20; 
+    reduction += pressurePenalty;
+}
+
 /* clamp biar gak over */
 reduction = Math.min(reduction, 0.97);
 
 return reduction;
 }
 
-function calculateUV(weatherMain, cloud, visibility, sunrise, sunset, lat, humidity){
+function calculateUV(weatherMain, cloud, visibility, sunrise, sunset, lat, humidity, pressure){
 
 const nowDate = new Date();
 const now = nowDate.getTime()/1000;
@@ -1162,7 +1175,8 @@ let reduction = getCloudReduction(
   cloud,
   weatherMain,
   visibility,
-  humidity ?? 80
+  humidity ?? 80,
+  pressure 
 );
 
 uv *= (1 - reduction);
@@ -1423,3 +1437,4 @@ return "🌡️";
 
 </body>
 </html>
+
