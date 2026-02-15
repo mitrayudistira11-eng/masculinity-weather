@@ -1101,7 +1101,7 @@ if (pressure < 1010) {
 }
 
 /* clamp biar gak over */
-reduction = Math.min(reduction, 0.97);
+reduction = Math.min(reduction, 1);
 
 return reduction;
 }
@@ -1272,6 +1272,7 @@ function detectCloudType(
   if(isDay){
     if(isMidDay && uvValue <= 3) cbScore += 1;
     if(isMidDay && uvValue <= 2) cbScore += 1;
+    if(uvValue = 0) cbScore += 1;
   }
 
   if(cbScore >= 6){
@@ -1437,5 +1438,6 @@ return "🌡️";
 
 </body>
 </html>
+
 
 
