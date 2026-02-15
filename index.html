@@ -1093,9 +1093,9 @@ if(weatherMain.includes("mist") || weatherMain.includes("fog")){
 /* ======================================= */
 
 // pressure biasanya 1013, di bawah 1008 biasanya mulai badai/hujan
-if (pressure < 1009) {
+if (pressure < 1010) {
     // Semakin rendah tekanan, semakin tebal awannya (Nonlinear)
-    const pressureDrop = 1009 - pressure; // Contoh: 1009 - 1006 = 3
+    const pressureDrop = 1010 - pressure; // Contoh: 1010 - 1006 = 4
     const pressurePenalty = Math.pow(pressureDrop / 5, 2) * 0.20; 
     reduction += pressurePenalty;
 }
@@ -1249,22 +1249,22 @@ function detectCloudType(
 
   // CB Hujan tanpa petir
   if(weatherMain.includes("rain") &&
-     cloudPercent > 80 &&
-     windGust > 5){
+     pressure > 1008 &&
+     windGust > 3){
     return "Cumulonimbus Pasif 🌩️";
   }
 
   // CB Lewat (anvil lewat tanpa hujan)
   let cbScore = 0;
 
-  if(cloudPercent > 84) cbScore += 1;
-  if(cloudPercent > 94) cbScore += 1;
+  if(cloudPercent > 70) cbScore += 1;
+  if(cloudPercent > 90) cbScore += 1;
 
-  if(humidity > 85) cbScore += 1;
+  if(humidity > 70) cbScore += 1;
   if(humidity > 90) cbScore += 1;
 
-  if(windGust > 3) cbScore += 1;
-  if(windGust > 6) cbScore += 1;
+  if(windGust > 2) cbScore += 1;
+  if(windGust > 5) cbScore += 1;
 
   if(pressure < 1008) cbScore += 1;
   if(pressure < 1005) cbScore += 1;
@@ -1437,4 +1437,5 @@ return "🌡️";
 
 </body>
 </html>
+
 
