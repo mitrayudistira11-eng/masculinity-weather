@@ -1070,14 +1070,17 @@ if(weatherMain.includes("mist") || weatherMain.includes("fog")){
 /* ===== ATMOSPHERIC FACTOR ==== */
 /* ============================= */
 
-// jarak pandang rendah → partikel tinggi
-if(visibility < 5){
-  reduction += 0.1;
+// Jarak pandang rendah → partikel tinggi (Nonlinear)
+if (visibility < 10) {
+    // Semakin rendah visibility, kenaikan reduction semakin tajam
+    reduction += Math.pow((10 - visibility) / 10, 2) * 0.15;
 }
 
-// humidity sangat tinggi → difusi cahaya
-if(humidity > 90){
-  reduction += 0.05;
+// Humidity (Nonlinear Reduction)
+// Menggunakan kurva eksponensial: efek terasa nyata setelah melewati 70%
+if (humidity > 70) {
+    const humidFactor = (humidity - 70) / 30; // Rentang 0.0 s/d 1.0
+    reduction += Math.pow(humidFactor, 2) * 0.12; 
 }
 
 /* clamp biar gak over */
