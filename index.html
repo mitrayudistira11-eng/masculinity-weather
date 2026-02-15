@@ -240,8 +240,25 @@ transition:.4s;
 <div id="desc"></div>
 <div class="section" id="outdoorScore"></div>
 <div class="data-row">
-  <span>Cloud Type:</span>
+  <span>Peluang Hujan:</span>
+  <span id="rainChance">-</span>
+</div>
+<div class="scoreBar" style="height: 5px; margin-bottom: 10px;">
+  <div id="rainFill" class="scoreFill" style="width: 0%; background: #3b82f6"></div>
+</div>
+<div class="data-row">
+  <span>Kondisi Hembusan:</span>
+  <span id="gustStatus" style="font-weight: bold;">Tenang</span>
+</div>
+<div class="scoreBar" style="height: 6px; margin-top: 4px; margin-bottom: 12px;">
+  <div id="gustFill" class="scoreFill" style="width: 0%; background: #94a3b8;"></div>
+</div>
+<div class="data-row">
+  <span>Tipe Awan:</span>
   <span id="cloudType">-</span>
+</div>
+<div id="rainStatus" style="font-size: 13px; margin-top: -5px; margin-bottom: -5px; color: #94a3b8; font-style: italic;">
+    Menganalisis kondisi udara...
 </div>
 <div class="section" id="extra"></div>
 <div class="section" id="recommendation"></div>
@@ -250,18 +267,23 @@ transition:.4s;
 
 <script>
 
-const apiKey="b313e26bc324fe7d98b9611f6767b770";
+// Variabel cadangan agar tidak undefined
+let lastLat = -0.5021; // Koordinat default Samarinda
+let lastLon = 117.1536;
+
+getLocation();
+
+function getLocation() {
+navigator.geolocation.getCurrentPosition(pos=>{
+getWeather(pos.coords.latitude,pos.coords.longitude);
+});
+};
 
 /* ================= CLOCK ================= */
 const clockEl=document.getElementById("clock");
 setInterval(()=>{
 clockEl.innerText=new Date().toLocaleTimeString();
 },1000);
-
-/* ================= GPS ================= */
-navigator.geolocation.getCurrentPosition(pos=>{
-getWeather(pos.coords.latitude,pos.coords.longitude);
-});
 
 /* ================= BACKGROUND ENGINE (FIXED) ================= */
 function setDynamicBackground(weatherMain, sunrise, sunset, cloudPercent){
@@ -413,6 +435,8 @@ c.style.zIndex = Math.floor(Math.random()*3);
 /* ================= WEATHER ================= */
 function getWeather(lat,lon){
 
+const apiKey="b313e26bc324fe7d98b9611f6767b770";
+
 fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=id&appid=${apiKey}`)
 .then(r=>r.json())
 .then(data=>{
@@ -454,6 +478,86 @@ data.sys.sunset,
 data.clouds.all,
 uvData.value
 );
+
+const chance = calculateNonLinearRain(
+    data.main.humidity, 
+    data.main.pressure, 
+    data.clouds.all, 
+    data.weather[0].main,
+    data.sys.sunrise,
+    data.sys.sunset
+);
+
+// --- UPDATE UI BAR & TEKS STATUS (TARUH DI SINI) ---
+const rainLabel = document.getElementById("rainChance");
+const rainFill = document.getElementById("rainFill");
+const rainStatusEl = document.getElementById("rainStatus"); // Sesuaikan ID-nya
+
+rainLabel.innerText = chance + "%";
+rainFill.style.width = chance + "%";
+
+// Logika Teks Diagnosa
+const isNightTime = (Date.now() / 1000 < data.sys.sunrise || Date.now() / 1000 > data.sys.sunset);
+
+if (isNightTime && data.main.humidity > 95) {
+    if (data.main.pressure >= 1010) {
+        rainStatusEl.innerText = "❄️ Udara sangat jenuh, potensi embun tebal.";
+        rainStatusEl.style.color = "#a5f3fc"; 
+    } else if (chance >= 99) {
+    rainStatusEl.innerText = "Hujan sedang terjadi di sebagian/semua wilayah kota";
+    rainStatusEl.style.color = "#f87171"; 
+}else {
+        rainStatusEl.innerText = "🌧️ Udara labil, potensi hujan ringan/gerimis.";
+        rainStatusEl.style.color = "#fbbf24"; 
+    }
+} else if (chance > 70) {
+    rainStatusEl.innerText = "⚠️ Probabilitas hujan tinggi.";
+    rainStatusEl.style.color = "#f87171"; 
+} else if (cloud > 89 && chance > 89 && press < 1009) {
+    statusText = "🌧️ Mendung pekat, hujan dalam waktu dekat.";
+    statusColor = "#fbbf24";
+} else if (chance < 40 && hum > 80) {
+    statusText = "🍃 Udara lembap tapi stabil (Nyaman).";
+    statusColor = "#22c55e";
+} else {
+    rainStatusEl.innerText = "☁️ Kondisi atmosfer cenderung stabil.";
+    rainStatusEl.style.color = "#94a3b8";
+}
+
+//Hembusan Angin
+const gustMS = Math.max(data.wind.gust || 0, data.wind.speed);
+const gustKmH = Math.round(gustMS * 3.6);
+
+const gustStatusLabel = document.getElementById("gustStatus");
+const gustFill = document.getElementById("gustFill");
+
+let statusText = "Tenang";
+let barColor = "#94a3b8"; // Abu-abu
+let barWidth = "15%";
+
+if (gustKmH > 40) {
+    statusText = "Sangat Bahaya! ⛔";
+    barColor = "#be123c"; // Merah Tua
+    barWidth = "100%";
+} else if (gustKmH > 25) {
+    statusText = "Waspada Crosswind ⚠️";
+    barColor = "#f43f5e"; // Merah Muda/Rose
+    barWidth = "75%";
+} else if (gustKmH > 15) {
+    statusText = "Terasa Kencang";
+    barColor = "#fbbf24"; // Kuning
+    barWidth = "45%";
+} else if (gustKmH > 5) {
+    statusText = "Sepoi-sepoi";
+    barColor = "#22c55e"; // Hijau
+    barWidth = "25%";
+}
+
+// Terapkan ke UI
+gustStatusLabel.innerText = statusText;
+gustStatusLabel.style.color = barColor;
+gustFill.style.width = barWidth;
+gustFill.style.background = barColor;
 
 document.getElementById("desc").innerText=
 "RealFeel "+feel+"°C | "+icon+" "+data.weather[0].description;
@@ -508,6 +612,7 @@ const cloudType = detectCloudType(
     feel,
     data.main.temp,
     data.weather[0].main.toLowerCase(),
+    data.wind.speed,
     data.wind.gust,
     data.main.humidity,
     data.main.pressure,
@@ -524,6 +629,7 @@ if(wind>10) windStatus="Sangat kencang ⛔";
 
 document.getElementById("extra").innerHTML=`
 <b>Angin:</b> ${angin} Km/h (${windStatus})<br>
+<b>Hembusan:</b> ${gustKmH} Km/h<br>
 <b>Kelembapan:</b> ${humidity}%<br>
 <b>Dew Point:</b> ${dewPoint.toFixed(1)}°C (${dewStatus})<br>
 <b>Tekanan:</b> ${pressure} hPa<br>
@@ -568,7 +674,7 @@ document.getElementById("warning").innerHTML="<b>Safety Riding:</b><br>"+warning
 
 function getWindEffect(temp, humidity, wind, gust){
 
-let v = (wind + gust)/2
+let v = Math.max(wind || 0, gust);
 
 if(v < 1) return 0; // hampir tidak terasa
 
@@ -799,7 +905,7 @@ console.log(`Feel Akhir: ${feel.toFixed(2)}°C`);
 
 else{
 
-  const v = ((wind+gust)/2) * 3.6;
+  const v = Math.max(wind || 0, gust) * 3.6;
 
 let windChillEffect = 0;
 
@@ -1224,6 +1330,7 @@ function detectCloudType(
   realFeel,
   temp,
   weatherMain,
+  wind,
   windGust,
   humidity,
   pressure,
@@ -1237,6 +1344,7 @@ function detectCloudType(
   const solarPeak = (sunrise + sunset) / 2;
   const midDayWindow = 2 * 3600; // 2 jam
   const isMidDay = Math.abs(now - solarPeak) < midDayWindow;
+  const angin = Math.max(wind || 0, windGust);
 
   /* ========================= */
   /* ===== CUMULONIMBUS ====== */
@@ -1250,7 +1358,7 @@ function detectCloudType(
   // CB Hujan tanpa petir
   if(weatherMain.includes("rain") &&
      pressure > 1008 &&
-     windGust > 3){
+     angin > 3){
     return "Cumulonimbus Pasif 🌩️";
   }
 
@@ -1263,8 +1371,8 @@ function detectCloudType(
   if(humidity > 70) cbScore += 1;
   if(humidity > 90) cbScore += 1;
 
-  if(windGust > 2) cbScore += 1;
-  if(windGust > 5) cbScore += 1;
+  if(angin > 2) cbScore += 1;
+  if(angin > 5) cbScore += 1;
 
   if(pressure < 1008) cbScore += 1;
   if(pressure < 1005) cbScore += 1;
@@ -1285,7 +1393,7 @@ function detectCloudType(
 
   if(
      cloudPercent > 85 &&
-     windGust < 5 &&
+     angin < 5 &&
      humidity > 70
   ){
     return "Stratiform Overcast ☁️";
@@ -1434,10 +1542,102 @@ if(main.includes("mist") || main.includes("fog")) return "🌫️";
 return "🌡️";
 }
 
+//Perhitungan Peluang Hujan
+function calculateNonLinearRain(hum, press, cloud, weather, sunrise, sunset) {
+    let score = 0;
+    const now = Date.now() / 1000;
+    const isNight = (now < sunrise || now > sunset);
+
+    // 1. Kelembapan (Pangkat 3)
+    let humFactor = Math.pow(hum / 100, 3) * 55; 
+    score += humFactor;
+
+    // 2. Tekanan (Exponential) - Pemicu Utama
+    // Kita buat tekanan lebih dominan di malam hari untuk membuang efek embun
+    if (press < 1010) {
+        let pressDiff = 1010 - press;
+        let pressWeight = isNight ? 5 : 4; // Malam hari, tekanan rendah lebih "dicurigai"
+        score += Math.pow(pressDiff, 1.5) * pressWeight; 
+    }
+
+// 3. Tutupan Awan (Non-Linear - Pangkat 2)
+    // Jika cloud 50% -> (0.5^2) * 20 = 5 poin
+    // Jika cloud 100% -> (1.0^2) * 20 = 20 poin (kenaikan tajam di akhir)
+    let cloudFactor = Math.pow(cloud / 100, 2) * 20;
+    score += cloudFactor;
+
+// === FILTER EMBUN MALAM (NON-LINEAR) ===
+if (isNight) {
+    // 1. Filter Tekanan (Semakin tinggi di atas 1010, semakin yakin itu embun)
+    if (press >= 1010) {
+        let pressStability = press - 1010; 
+        // Menggunakan pangkat 1.2 agar kenaikan tekanan 1012 ke 1013 potongannya makin terasa
+        let pressReduction = Math.pow(pressStability + 2, 2) * 4; 
+        score -= pressReduction;
+    }
+
+    // 2. Filter Tutupan Awan (Semakin sedikit awan, semakin yakin itu bukan hujan)
+    // Kita balik logikanya: (1 - cloud/100)
+    // Jika cloud 0% (cerah), pengurangan maksimal. Jika cloud 80%, pengurangan kecil.
+    let cloudClearness = 1 - (cloud / 100);
+    let cloudReduction = Math.pow(cloudClearness, 1.5) * 30;
+    score -= cloudReduction;
+
+    // 3. Efek Gabungan (Double Check)
+    // Kalau sudah tekanan tinggi DAN langit cerah, potong habis skornya
+    if (press >= 1010 && cloud < 40) {
+        score -= 20; 
+    }
+}
+
+    // Override Cuaca Langsung
+    const cond = weather.toLowerCase();
+    if (cond.includes("rain") || cond.includes("thunderstorm")) return 100;
+    
+    // Hasil Akhir (Minimal 5% kalau malam lembap)
+    let final = Math.min(Math.round(score), 99);
+    final = Math.max(final, 5); 
+
+    return final;
+}
+
+function autoUpdateScheduler() {
+    const now = new Date();
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+
+    // 1. Cari kapan menit kelipatan 10 selanjutnya
+    // Jika sekarang menit 12, maka targetnya menit 20
+    const nextTenMinutes = Math.ceil((minutes + 0.1) / 10) * 10;
+    
+    let diffMinutes = nextTenMinutes - minutes;
+    
+    // Jika sekarang jam 2:55, target berikutnya jam 3:00 (menit 60)
+    // ini akan otomatis terhitung diffMinutes = 5
+    
+    const msToNextUpdate = (diffMinutes * 60 * 1000) - (seconds * 1000);
+
+    console.log(`Update otomatis terjadwal pada menit ke-${nextTenMinutes % 60 === 0 ? '00' : nextTenMinutes}`);
+    console.log(`Tunggu ${(msToNextUpdate / 1000).toFixed(0)} detik lagi...`);
+
+    // 2. Set Timer
+    setTimeout(() => {
+        console.log("Waktu tercapai! Merefresh data...");
+        
+        // Panggil fungsi ambil data kamu
+        getLocation();
+        
+        // 3. REKURSIF: Panggil lagi fungsi scheduler ini
+        // Supaya dia menjadwalkan update berikutnya (10 menit lagi)
+        autoUpdateScheduler();
+
+    }, msToNextUpdate);
+}
+
+// Jalankan pertama kali saat aplikasi dibuka
+autoUpdateScheduler();
+
 </script>
 
 </body>
 </html>
-
-
-
