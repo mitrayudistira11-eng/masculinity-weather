@@ -492,6 +492,7 @@ const chance = calculateNonLinearRain(
 const rainLabel = document.getElementById("rainChance");
 const rainFill = document.getElementById("rainFill");
 const rainStatusEl = document.getElementById("rainStatus"); // Sesuaikan ID-nya
+const awan = data.clouds.all;
 
 rainLabel.innerText = chance + "%";
 rainFill.style.width = chance + "%";
@@ -513,10 +514,10 @@ if (isNightTime && data.main.humidity > 95) {
 } else if (chance > 70) {
     rainStatusEl.innerText = "⚠️ Probabilitas hujan tinggi.";
     rainStatusEl.style.color = "#f87171"; 
-} else if (cloud > 89 && chance > 89 && press < 1009) {
+} else if (awan > 89 && chance > 89 && data.main.pressure < 1009) {
     statusText = "🌧️ Mendung pekat, hujan dalam waktu dekat.";
     statusColor = "#fbbf24";
-} else if (chance < 40 && hum > 80) {
+} else if (chance < 40 && data.main.humidity > 80) {
     statusText = "🍃 Udara lembap tapi stabil (Nyaman).";
     statusColor = "#22c55e";
 } else {
