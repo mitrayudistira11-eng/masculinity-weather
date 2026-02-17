@@ -438,8 +438,24 @@ function getWeather(lat,lon){
 const apiKey="b313e26bc324fe7d98b9611f6767b770";
 
 fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=id&appid=${apiKey}`)
-.then(r=>r.json())
-.then(data=>{
+.then(response => response.json())
+.then(data => {
+
+    // ===============================
+    // 2️⃣ FETCH OPEN METEO
+    // ===============================
+    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,dew_point_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_7cm,soil_moisture_0_to_1cm&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_7cm,soil_moisture_0_to_1cm&forecast_days=1`)
+    .then(res => res.json())
+    .then(meteo => {
+
+        const meteoData = meteo.current || {};
+	const meteoData_record = meteo.hourly || {};
+
+        console.log("OPEN WEATHER:", data);
+        console.log("OPEN METEO:", meteoData);
+        console.log("OPEN METEO HOURLY RECORD:", meteoData_record);
+
+const pressures = meteoData_record.pressure_msl || [];
 
 setDynamicBackground(
 data.weather[0].main.toLowerCase(),
@@ -448,6 +464,9 @@ data.sys.sunset,
 data.clouds.all
 );
 
+const pressureTrend = detectPressureTrend(pressures);
+
+console.log("Pressure Trend:", pressureTrend);
 
 /* ===== BASIC ===== */
 
@@ -464,7 +483,10 @@ data.sys.sunrise,
 data.sys.sunset,
 data.coord.lat,
 data.main.humidity,
-data.main.pressure
+data.main.pressure,
+meteoData.cloud_cover_low,
+meteoData.cloud_cover_mid,
+meteoData.cloud_cover_high
 );
 
 const feel = customFeelLike(
@@ -476,54 +498,116 @@ data.weather[0].main.toLowerCase(),
 data.sys.sunrise,
 data.sys.sunset,
 data.clouds.all,
-uvData.value
+uvData.value,
+meteoData.shortwave_radiation,
+meteoData.direct_radiation,
+meteoData.diffuse_radiation,
+meteoData.terrestrial_radiation,
+meteoData.surface_temperature,
+meteoData.cape,
+pressureTrend,
+meteoData.soil_moisture_0_to_1cm
 );
 
 const chance = calculateNonLinearRain(
     data.main.humidity, 
-    data.main.pressure, 
+    pressureTrend, 
     data.clouds.all, 
     data.weather[0].main,
     data.sys.sunrise,
     data.sys.sunset
 );
 
-// --- UPDATE UI BAR & TEKS STATUS (TARUH DI SINI) ---
+// --- UPDATE UI BAR & TEKS STATUS ---
 const rainLabel = document.getElementById("rainChance");
 const rainFill = document.getElementById("rainFill");
-const rainStatusEl = document.getElementById("rainStatus"); // Sesuaikan ID-nya
+const rainStatusEl = document.getElementById("rainStatus");
+
 const awan = data.clouds.all;
+const humi = data.main.humidity;
 
 rainLabel.innerText = chance + "%";
 rainFill.style.width = chance + "%";
 
-// Logika Teks Diagnosa
-const isNightTime = (Date.now() / 1000 < data.sys.sunrise || Date.now() / 1000 > data.sys.sunset);
+const nowUnix = Date.now() / 1000;
+const isNightTime = (nowUnix < data.sys.sunrise || nowUnix > data.sys.sunset);
 
-if (isNightTime && data.main.humidity > 95) {
-    if (data.main.pressure >= 1010) {
-        rainStatusEl.innerText = "❄️ Udara sangat jenuh, potensi embun tebal.";
-        rainStatusEl.style.color = "#a5f3fc"; 
-    } else if (chance >= 99) {
-    rainStatusEl.innerText = "Hujan sedang terjadi di sebagian/semua wilayah kota";
-    rainStatusEl.style.color = "#f87171"; 
-}else {
-        rainStatusEl.innerText = "🌧️ Udara labil, potensi hujan ringan/gerimis.";
-        rainStatusEl.style.color = "#fbbf24"; 
+let statusText = "";
+let statusColor = "#94a3b8";
+
+/* ==========================
+   🌙 NIGHT LOGIC
+========================== */
+
+if(isNightTime){
+
+    if(chance >= 99){
+        statusText = "🌧️ Hujan sedang terjadi di sebagian/seluruh wilayah.";
+        statusColor = "#f87171";
     }
-} else if (chance > 70) {
-    rainStatusEl.innerText = "⚠️ Probabilitas hujan tinggi.";
-    rainStatusEl.style.color = "#f87171"; 
-} else if (awan > 89 && chance > 89 && data.main.pressure < 1009) {
-    statusText = "🌧️ Mendung pekat, hujan dalam waktu dekat.";
-    statusColor = "#fbbf24";
-} else if (chance < 40 && data.main.humidity > 80) {
-    statusText = "🍃 Udara lembap tapi stabil (Nyaman).";
-    statusColor = "#22c55e";
-} else {
-    rainStatusEl.innerText = "☁️ Kondisi atmosfer cenderung stabil.";
-    rainStatusEl.style.color = "#94a3b8";
+
+    else if(
+        humi > 95 &&
+        pressureTrend === "Stable Pressure ☁️"
+    ){
+        statusText = "❄️ Udara sangat jenuh, potensi embun tebal.";
+        statusColor = "#a5f3fc";
+    }
+
+    else if(
+        pressureTrend === "Convective Pressure Drop ⛈️"
+    ){
+        statusText = "⚡ Atmosfer labil, potensi hujan konvektif malam.";
+        statusColor = "#fbbf24";
+    }
+
+    else{
+        statusText = "🌙 Atmosfer relatif stabil.";
+    }
+
 }
+
+/* ==========================
+   ☀️ DAY LOGIC
+========================== */
+
+else{
+
+    if(chance >= 99){
+        statusText = "🌧️ Hujan sedang terjadi.";
+        statusColor = "#f87171";
+    }
+
+    else if(
+        awan > 85 &&
+        chance > 70 &&
+        pressureTrend === "Convective Pressure Drop ⛈️"
+    ){
+        statusText = "🌩️ Mendung pekat, hujan kemungkinan segera turun.";
+        statusColor = "#fbbf24";
+    }
+
+    else if(chance > 70){
+        statusText = "⚠️ Probabilitas hujan tinggi.";
+        statusColor = "#f87171";
+    }
+
+    else if(chance < 40 && humi > 80){
+        statusText = "🍃 Udara lembap namun atmosfer stabil.";
+        statusColor = "#22c55e";
+    }
+
+    else{
+        statusText = "☁️ Kondisi atmosfer cenderung stabil.";
+    }
+}
+
+/* ==========================
+   APPLY TO UI
+========================== */
+
+rainStatusEl.innerText = statusText;
+rainStatusEl.style.color = statusColor;
 
 //Hembusan Angin
 const gustMS = Math.max(data.wind.gust || 0, data.wind.speed);
@@ -532,30 +616,30 @@ const gustKmH = Math.round(gustMS * 3.6);
 const gustStatusLabel = document.getElementById("gustStatus");
 const gustFill = document.getElementById("gustFill");
 
-let statusText = "Tenang";
+let statusTextAngin = "Tenang";
 let barColor = "#94a3b8"; // Abu-abu
 let barWidth = "15%";
 
 if (gustKmH > 40) {
-    statusText = "Sangat Bahaya! ⛔";
+    statusTextAngin = "Sangat Bahaya! ⛔";
     barColor = "#be123c"; // Merah Tua
     barWidth = "100%";
 } else if (gustKmH > 25) {
-    statusText = "Waspada Crosswind ⚠️";
+    statusTextAngin = "Waspada Crosswind ⚠️";
     barColor = "#f43f5e"; // Merah Muda/Rose
     barWidth = "75%";
 } else if (gustKmH > 15) {
-    statusText = "Terasa Kencang";
+    statusTextAngin = "Terasa Kencang";
     barColor = "#fbbf24"; // Kuning
     barWidth = "45%";
 } else if (gustKmH > 5) {
-    statusText = "Sepoi-sepoi";
+    statusTextAngin = "Sepoi-sepoi";
     barColor = "#22c55e"; // Hijau
     barWidth = "25%";
 }
 
 // Terapkan ke UI
-gustStatusLabel.innerText = statusText;
+gustStatusLabel.innerText = statusTextAngin;
 gustStatusLabel.style.color = barColor;
 gustFill.style.width = barWidth;
 gustFill.style.background = barColor;
@@ -591,9 +675,16 @@ const outdoorScore = calculateOutdoorScore(
 feel,
 data.weather[0].main.toLowerCase(),
 uvData.value,
-data.wind.speed,
+data.wind.gust,
 visibility
 );
+
+const cloudType = detectCloudType({
+  openWeather: data,
+  uv: uvData.value,
+  realFeel: feel,
+  openMeteo: meteoData
+});
 
 const color =
 outdoorScore >= 8 ? "#22c55e" :
@@ -606,20 +697,6 @@ document.getElementById("outdoorScore").innerHTML = `
   <div class="scoreFill" style="width:${outdoorScore*10}%; background:${color}"></div>
 </div>
 `;
-
-const cloudType = detectCloudType(
-    data.clouds.all,
-    uvData.value,
-    feel,
-    data.main.temp,
-    data.weather[0].main.toLowerCase(),
-    data.wind.speed,
-    data.wind.gust,
-    data.main.humidity,
-    data.main.pressure,
-    data.sys.sunrise,
-    data.sys.sunset
-);
 
 document.getElementById("cloudType").innerText = cloudType;
 applyCloudColor(cloudType);
@@ -645,7 +722,8 @@ document.getElementById("recommendation").innerHTML =
 recommendation(
     feel,
     data.weather[0].main.toLowerCase(),
-    data.wind.speed
+    data.wind.speed,
+    outdoorScore	
 );
 
 /* ===== RIDING WARNING ===== */
@@ -671,58 +749,120 @@ warning="⛔ Badai petir! Tidak disarankan riding.";
 document.getElementById("warning").innerHTML="<b>Safety Riding:</b><br>"+warning;
 
 });
+});
+}
+
+function detectPressureTrend(pressures){
+const now = new Date();
+const currentHour = now.getHours();
+
+  if(!pressures || pressures.length < 7){
+    return "Data Tidak Cukup";
+  }
+
+  if(currentHour < 6){
+    return "Data Belum Cukup (Butuh 6 Jam Sebelumnya)";
+  }
+
+  const sekarang = pressures[currentHour];
+  const threeHoursAgo = pressures[currentHour - 3];
+  const sixHoursAgo = pressures[currentHour - 6];
+
+  const drop3h = sekarang - threeHoursAgo;
+  const drop6h = sekarang - sixHoursAgo;
+
+  console.log("Pressure 3h change:", drop3h);
+  console.log("Pressure 6h change:", drop6h);
+
+  /* =============================
+     TROPICAL CLASSIFICATION
+  ============================== */
+
+  // Rapid system drop
+  if(drop6h <= -6){
+    return "Rapid Cyclonic Drop 🌪️";
+  }
+
+  // Strong convective signal
+  if(drop3h <= -3){
+    return "Convective Pressure Drop ⛈️";
+  }
+
+  // Normal diurnal oscillation
+  if(drop3h <= -2 && drop3h > -3){
+    return "Diurnal Pressure Drop 🌅";
+  }
+
+  // Rising pressure (clearing sky)
+  if(drop3h >= 2){
+    return "Rising Pressure 🌤️";
+  }
+
+  return "Stable Pressure ☁️";
 }
 
 function getWindEffect(temp, humidity, wind, gust){
 
-let v = Math.max(wind || 0, gust);
+    const skinTemp = 34;
+    let v = Math.max(wind || 0, gust);
 
-if(v < 1) return 0; // hampir tidak terasa
+    if(v < 0.5) return 0;
 
-let effect = 0;
+    // ===== HITUNG DEW POINT =====
+    const a = 17.27;
+    const b = 237.7;
 
-/* ========================= */
-/* ===== COOLING MODE ====== */
-/* ========================= */
+    const alpha = ((a * temp) / (b + temp)) + Math.log(humidity/100);
+    const dew = (b * alpha) / (a - alpha);
 
-// kalau udara lebih dingin dari kulit
-if(temp < 39){
+    // Selisih evaporasi (semakin besar semakin efektif)
+    let vaporGradient = skinTemp - dew;
+    vaporGradient = Math.max(0, vaporGradient);
 
-   // kelembapan rendah → cooling maksimal
-   if(humidity < 60){
-      effect = v * 0.4;
-   }
+    // Normalisasi (0–1.2 kira-kira realistis)
+    let evapEfficiency = vaporGradient / 20;
+    evapEfficiency = Math.min(1.2, evapEfficiency);
 
-   // kelembapan sedang
-   else if(humidity < 80){
-      effect = v * 0.25;
-   }
+    // Ventilation dari angin
+    let windVent = Math.sqrt(v) * 0.9;
 
-   // kelembapan tinggi → cooling lemah
-   else{
-      effect = v * 0.1;
-   }
+    let effect = 0;
+
+    // ===== COOLING MODE =====
+    if(temp < skinTemp){
+
+        effect = windVent * evapEfficiency;
+    }
+
+    // ===== HOT WIND MODE =====
+    else{
+
+        let heatDelta = (temp - skinTemp) / 10;
+        effect = - windVent * heatDelta * (1 - evapEfficiency);
+    }
+
+    return effect;
 }
 
-/* ========================= */
-/* ===== HOT WIND MODE ===== */
-/* ========================= */
-
-// kalau udara lebih panas dari kulit
-else{
-
-   if(humidity > 70){
-      effect = - (v * 0.2); // tambah panas
-   }
-   else{
-      effect = - (v * 0.05);
-   }
-}
-
-return effect;
-}
-
-function customFeelLike(temp, humidity, wind, gust, weatherMain, sunrise, sunset, cloudPercent, uv){
+function customFeelLike(
+    temp,
+    humidity,
+    wind,
+    gust,
+    weatherMain,
+    sunrise,
+    sunset,
+    cloudPercent,
+    uv,
+    shortwave,
+    directRad,
+    diffuseRad,
+    terrestrialRad,
+    surfaceTemp,
+    cape,
+    pressureTrend,
+    soilMoisture
+){
 
 const now = Date.now()/1000;
 const isDay = (now > sunrise && now < sunset);
@@ -808,27 +948,52 @@ if (hoursAfterSunrise >= -3 && hoursAfterSunrise <= 1) {
 
 feel += morningCoolMemory;
 
+let instabilityEffect = 0;
+
+if(cape > 800){
+    instabilityEffect = Math.sqrt(cape / 2000) * 1;
+
+    if(pressureTrend === "Convective Pressure Drop ⛈️"){
+        instabilityEffect += 1.0;
+    }
+}
+
+feel += instabilityEffect;
+
+    console.log(`Instability Effect: ${instabilityEffect.toFixed(2)}°C`);
+
+let surfaceDelta = surfaceTemp - temp;
+
+let surfaceMemory = surfaceDelta * 0.2;
+surfaceMemory = Math.max(-3, Math.min(3, surfaceMemory));
+
+feel += surfaceMemory;
+
+    console.log(`Surface Memory: ${surfaceMemory.toFixed(2)}°C`);
+
 if(isDay){
 
-   // Jam sebelum 8 pagi belum ada solar heating maksimal
-let solarFactor = 0;
+  let radiationStrength = Math.sqrt(shortwave / 1000);
+    radiationStrength = Math.min(1.1, radiationStrength);
 
-if (hour >= 7 && hour <= 17) {
-    // 1. Time Weight (Kurva Parabola)
-    // Puncaknya di jam 12 siang (nilai 1.0), jam 7 pagi dan 5 sore mendekati 0.
-    let timeProgress = (hour - 7) / (17 - 7); // 0 (jam 7) sampai 1 (jam 17)
-    let timeWeight = Math.sin(timeProgress * Math.PI); // Kurva melengkung mulus
-    
-    // 2. UV Intensity Nonlinear
-    // Menggunakan Math.sqrt agar UV rendah sudah mulai terasa, 
-    // tapi UV ekstrem (11+) tidak membuat RealFeel meledak tak terkendali.
-    let uvWeight = Math.sqrt(uv / 11); 
+    let timeProgress = hoursAfterSunrise / ((sunset - sunrise)/3600);
+    let timeWeight = Math.sin(Math.PI * timeProgress);
 
-    // 3. Skala Maksimal (Misal +4°C saat tengah hari bolong)
-    solarFactor = timeWeight * uvWeight * 4.0;
+    // UV hanya sebagai shaping, bukan booster terpisah
+    let uvModifier = 0.8 + (Math.sqrt(uv / 11) * 0.4);
 
-console.log(`Solar Factor: ${solarFactor.toFixed(2)}°C`);
-}
+    // Cloud behavior via diffuse ratio
+    let cloudRatio = diffuseRad / (shortwave + 1);
+    let cloudModifier = 1 - (cloudRatio * 0.5);
+
+    let solarFactor =
+        radiationStrength *
+        timeWeight *
+        uvModifier *
+        cloudModifier *
+        3.0;
+
+    console.log(`Solar Factor: ${solarFactor.toFixed(2)}°C`);
 
   // beberapa kondisi cuaca → dingin
   if(weatherMain.includes("drizzle")) feel -= 1.5;
@@ -880,8 +1045,8 @@ console.log(`humidity Factor: ${humidityFactor.toFixed(2)}°C`);
     let cloudFraction = cloudPercent / 100;
     let cloudWeight = Math.sqrt(cloudFraction); 
     
-    // Potongan 3 derajat hanya maksimal di titik tengah hari
-    let cloudCooling = cloudWeight * 3.0 * hourFactor;
+    // Potongan 1 derajat hanya maksimal di titik tengah hari
+    let cloudCooling = cloudWeight * 1.0 * hourFactor;
 
     feel -= cloudCooling;
 
@@ -939,58 +1104,18 @@ else {
   nightFactor = 1; // Stabil penuh
 }
 
-let surfaceMemory = 0;
+let radCooling = 0;
 
-if (hoursAfterSunset <= 3) {
-
-  // decay 1 → 0 dalam 3 jam
-  let decay = 1 - (hoursAfterSunset / 3);
-
-  // Estimasi kekuatan panas dari suhu saat ini
-  // 25°C jadi titik netral
-  let heatStrength = (temp - 25) * 0.15;
-
-  // Clamp biar nggak liar
-  heatStrength = Math.max(0, Math.min(1.8, heatStrength));
-
-  surfaceMemory = heatStrength * decay;
+if(terrestrialRad > 350){
+    radCooling = (terrestrialRad - 350) / 200;
 }
 
-feel += surfaceMemory;
+radCooling = Math.min(1.5, radCooling);
+let NightRadCooling = radCooling * nightFactor;
 
-//Cloud Night Effect
+feel -= NightRadCooling
 
-// 1. Ambil Progress Malam (Mencapai puncak dalam 6 jam)
-    let nightStrength = Math.min(1.0, hoursAfterSunset / 6); 
-
-// 2. Sinergi dengan Pre-Morning Cool (Dawn Fade)
-    // hoursAfterSunrise akan bernilai NEGATIF sebelum matahari terbit.
-    // Misal: Jam 04:00 pagi, hoursAfterSunrise mungkin bernilai -2.0
-    
-    // Kita mulai memudarkan efek awan 4 jam sebelum sunrise (sesuai maumu)
-    if (hoursAfterSunrise > -4) { 
-        // Saat jam 02:00 pagi (hoursAfterSunrise = -4), dawnFade = 1.0
-        // Saat jam 06:00 pagi (hoursAfterSunrise = 0), dawnFade = 0.0
-        let dawnFade = Math.abs(hoursAfterSunrise) / 4; 
-        
-        nightStrength *= Math.max(0, Math.min(1.0, dawnFade));
-    }
-
-// 3. Hitung Cloud Effect
-    let cloudFraction = cloudPercent / 100;
-    let cloudWeight = Math.pow(cloudFraction, 1.5); 
-    let baseEffect = (cloudWeight - 0.5) * 2 * 2.0 * nightFactor;
-    
-    let cloudEffect = baseEffect * nightStrength;
-
-    // 4. Apply
-    cloudEffect = Math.max(-2, Math.min(2, cloudEffect));
-    feel += cloudEffect;
-
-console.log(`Time to Sunrise: ${Math.abs(hoursAfterSunrise).toFixed(2)} hours`);
-    console.log(`Night Strength : ${(nightStrength * 100).toFixed(1)}%`);
-    console.log(`Base Potential : ${baseEffect.toFixed(2)}°C`);
-    console.log(`Final Effect   : ${cloudEffect.toFixed(2)}°C`);
+    console.log(`Night Rad Cooling: -${NightRadCooling.toFixed(2)}°C`);
 
 let humidityEffect = 0;
 
@@ -1015,6 +1140,42 @@ feel += humidityEffect * 0.8;
 }else{
 feel += humidityEffect;
 }
+
+/* ========================= */
+/* ===== SOIL MOISTURE NIGHT COOLING ===== */
+/* ========================= */
+
+let soilCooling = 0;
+
+// Pastikan tidak undefined
+if(typeof soilMoisture === "number" && typeof terrestrialRad === "number"){
+
+    let soilFraction = Math.max(0, Math.min(1, soilMoisture));
+
+    let humidityLimiter = 1 - (humidity / 100);
+    humidityLimiter = Math.max(0, humidityLimiter);
+
+    let windSafe = Math.max(0, wind || 0);
+    let windBoost = Math.sqrt(windSafe) * 0.15;
+
+    let radiationBoost = terrestrialRad > 350 ? 1.2 : 1.0;
+    let cloudFraction = cloudPercent / 100;
+    let skyExposure = 1 - cloudFraction;
+
+    soilCooling =
+        soilFraction *
+        humidityLimiter *
+        radiationBoost *
+	skyExposure *
+        (0.8 + windBoost) *
+        2.5;
+
+    soilCooling = Math.min(3, soilCooling);
+
+    feel -= soilCooling;
+}
+
+console.log(`Soil Cooling Effect: -${soilCooling.toFixed(2)}°C`);
 
  // beberapa kondisi cuaca → dingin
   if(weatherMain.includes("drizzle")) feel -= 0.8;
@@ -1045,7 +1206,7 @@ return Math.round(feel);
 }
 
 
-function recommendation(feelLike, weather, wind){
+function recommendation(feelLike, weather, wind, outdoor){
 
 let outfit="";
 let activity="";
@@ -1096,6 +1257,15 @@ outfit="Mantel tebal full thermal + celana thermal + boots + beanie + neck warme
 activity="Fokus indoor: Built Up Custom detail, perencanaan proyek, latihan taktik teori, gym, bobok.";
 }
 
+/* ============================= */
+/* ===== SCORE OUTDOOR ======== */
+/* ============================= */
+
+if(outdoor < 8){
+activity += " ⚠️ Batasi Kegiatan Outdoor!!!";
+}else if(outdoor < 4){
+activity = "⛔ Tunda Semua Kegiatan Outdoor!!! Disarankan Aktivitas Produktif Indoor";
+}
 
 /* ============================= */
 /* ===== MODIFIER CUACA ======== */
@@ -1121,7 +1291,7 @@ activity = "Batasi kegiatan outdoor karena jarak pandang berkurang!";
 warning = "⚠️ Cuaca berkabut! Disarankan untuk mengendarai motor custom secara berhati-hati karena jarak pandang berkurang!";
 }
 
-if(weather.includes("cloud") && feelLike >= 28){
+if(weather.includes("cloud") && feelLike >= 25 && feelLike <= 30){
 activity += " Cuaca mendukung aktivitas outdoor tanpa panas berlebih.";
 }
 
@@ -1143,19 +1313,41 @@ return `
 `;
 }
 
-function getCloudReduction(cloudPercent, weatherMain, visibility, humidity, pressure){
+function getLayeredCloudReduction(low, mid, high){
+
+  // Normalisasi 0–1
+    const l = low / 100;
+    const m = mid / 100;
+    const h = high / 100;
+
+    // Transmission per layer (nonlinear exponential decay)
+    // Angka 3.0, 1.8, 0.8 adalah kekuatan optikal relatif
+
+    const T_low  = Math.exp(-3.0 * Math.pow(l, 1.4));
+    const T_mid  = Math.exp(-1.8 * Math.pow(m, 1.3));
+    const T_high = Math.exp(-0.8 * Math.pow(h, 1.2));
+
+    // Total transmission (multiplicative physics)
+    const totalTransmission = T_low * T_mid * T_high;
+
+    // Reduction adalah kebalikan transmission
+    const reduction = 1 - totalTransmission;
+
+    return Math.min(reduction, 0.97);
+}
+
+function getCloudReduction(cloudPercent, weatherMain, visibility, humidity, pressure, lowCloud, midCloud, highCloud){
 
 let reduction = 0;
 
 /* ======================================= */
     /* 1. CLOUD FACTOR (Dibuat Lebih Ringan)   */
     /* ======================================= */
-    // Pengali diturunkan dari 0.6 ke 0.52 agar UV tidak drop terlalu dalam saat kering
-    reduction = 0.05 + (cloudPercent / 100) * 0.52;
-    
-    if (cloudPercent > 90) {
-        reduction += 0.03; // Bonus penalti overcast tetap ada
-    }
+reduction = getLayeredCloudReduction(
+    lowCloud,
+    midCloud,
+    highCloud
+);
 
 /* ============================= */
 /* ===== WEATHER OVERRIDE ====== */
@@ -1189,23 +1381,11 @@ if(weatherMain.includes("mist") || weatherMain.includes("fog")){
     }
 
     // Humidity (Efek Difusi Uap Air)
-    if (humidity > 70) {
-        const humidFactor = (humidity - 70) / 30; // Rentang 0.0 s/d 1.0
+    if (humidity > 85) {
+        const humidFactor = (humidity - 85) / 30; // Rentang 0.0 s/d 1.0
         // Jika humidity 100%, reduction bertambah 0.15 (lebih kuat dari sebelumnya)
         reduction += Math.pow(humidFactor, 2) * 0.15; 
     }
-
-  /* ======================================= */
-/* 4. PRESSURE SENSOR (The "Storm" Detector) */
-/* ======================================= */
-
-// pressure biasanya 1013, di bawah 1008 biasanya mulai badai/hujan
-if (pressure < 1010) {
-    // Semakin rendah tekanan, semakin tebal awannya (Nonlinear)
-    const pressureDrop = 1010 - pressure; // Contoh: 1010 - 1006 = 4
-    const pressurePenalty = Math.pow(pressureDrop / 5, 2) * 0.20; 
-    reduction += pressurePenalty;
-}
 
 /* clamp biar gak over */
 reduction = Math.min(reduction, 1);
@@ -1213,7 +1393,7 @@ reduction = Math.min(reduction, 1);
 return reduction;
 }
 
-function calculateUV(weatherMain, cloud, visibility, sunrise, sunset, lat, humidity, pressure){
+function calculateUV(weatherMain, cloud, visibility, sunrise, sunset, lat, humidity, pressure, lowcloud, midcloud, highcloud){
 
 const nowDate = new Date();
 const now = nowDate.getTime()/1000;
@@ -1267,7 +1447,8 @@ const sunFactor = Math.max(0, sinElev);
 /* ===== BASE UV (physics) == */
 /* ========================= */
 
-let uv = 12 * sunFactor;
+let maxUV = 11 + (2 * Math.cos(latRad));
+let uv = maxUV * sunFactor;
 
 
 /* ========================= */
@@ -1283,7 +1464,10 @@ let reduction = getCloudReduction(
   weatherMain,
   visibility,
   humidity ?? 80,
-  pressure 
+  pressure, 
+  lowcloud,
+  midcloud,
+  highcloud
 );
 
 uv *= (1 - reduction);
@@ -1325,146 +1509,263 @@ else category="Extreme ☀️";
 return { value: uv, category };
 }
 
-function detectCloudType(
-  cloudPercent,
-  uvValue,
-  realFeel,
-  temp,
-  weatherMain,
-  wind,
-  windGust,
-  humidity,
-  pressure,
-  sunrise,
-  sunset
-){
+function detectCloudType({ openWeather, uv, realFeel, openMeteo }){
+
+  /* =========================
+     BASIC DATA
+  ========================= */
 
   const now = Date.now()/1000;
-  const isDay = (now > sunrise && now < sunset);
+  const sunrise = openWeather.sys.sunrise;
+  const sunset = openWeather.sys.sunset;
+  const isDay = now > sunrise && now < sunset;
 
-  const solarPeak = (sunrise + sunset) / 2;
-  const midDayWindow = 2 * 3600; // 2 jam
-  const isMidDay = Math.abs(now - solarPeak) < midDayWindow;
-  const angin = Math.max(wind || 0, windGust);
+  const weatherMain = openWeather.weather[0].main.toLowerCase();
+  const pressure = openWeather.main.pressure;
+  const humidity = openWeather.main.humidity;
+  const angin = Math.max(openWeather.wind.speed || 0, openWeather.wind.gust || 0);
 
-  /* ========================= */
-  /* ===== CUMULONIMBUS ====== */
-  /* ========================= */
+  /* =========================
+     OPEN METEO DATA
+  ========================= */
 
-  // CB Aktif (storm logic dari API)
-  if(weatherMain.includes("thunderstorm")){
-    return "Cumulonimbus Aktif ⛈️";
+  const cape = openMeteo?.cape ?? 0;
+  const low = openMeteo?.cloud_cover_low ?? 0;
+  const mid = openMeteo?.cloud_cover_mid ?? 0;
+  const high = openMeteo?.cloud_cover_high ?? 0;
+  const shortwave = openMeteo?.shortwave_radiation ?? 0;
+
+  const totalCloud = Math.max(low, mid, high);
+
+  /* =========================================================
+     1️⃣ CUMULONIMBUS DETECTION (VERTICAL DEVELOPMENT)
+  ========================================================= */
+
+// ===============================
+// 1️⃣ Cb Aktif (fase matang)
+// ===============================
+if(
+  weatherMain.includes("thunderstorm") ||
+  (cape > 1200 && low > 40 && mid > 40)
+){
+  return "Cumulonimbus Aktif ⛈️";
+}
+
+// ===============================
+// 2️⃣ Cb Berkembang (fase naik)
+// ===============================
+if(
+  cape > 800 &&
+  low > 30 &&
+  mid > 30
+){
+  return "Cumulonimbus Berkembang 🌩️";
+}
+
+// ===============================
+// 3️⃣ Cb Pasif (hujan konvektif ringan)
+// ===============================
+if(
+  weatherMain.includes("rain") &&
+  cape > 500 &&
+  cape <= 800
+){
+  return "Cumulonimbus Pasif 🌩️";
+}
+
+// ===============================
+// 4️⃣ Cb Lewat (anvil sisa)
+// ===============================
+if(
+  cape < 700 &&
+  high > 50 &&
+  mid > 20 &&
+  angin >= 5
+){
+  return "Cumulonimbus Lewat 🌪️";
+}
+
+
+  /* =========================================================
+     2️⃣ NIMBOSTRATUS (Hujan luas stabil)
+  ========================================================= */
+
+  if(weatherMain.includes("rain") && cape < 400 && mid > 60){
+    return "Nimbostratus ☁️🌧️";
   }
 
-  // CB Hujan tanpa petir
-  if(weatherMain.includes("rain") &&
-     pressure > 1008 &&
-     angin > 3){
-    return "Cumulonimbus Pasif 🌩️";
+  /* =========================================================
+     3️⃣ LOW CLOUD DOMINANT
+  ========================================================= */
+
+  if(low > 70 && mid < 40){
+    if(isDay){
+      return "Stratus Overcast ☁️";
+    } else {
+      return "Overcast Night ☁️🌙";
+    }
   }
 
-  // CB Lewat (anvil lewat tanpa hujan)
-  let cbScore = 0;
-
-  if(cloudPercent > 70) cbScore += 1;
-  if(cloudPercent > 90) cbScore += 1;
-
-  if(humidity > 70) cbScore += 1;
-  if(humidity > 90) cbScore += 1;
-
-  if(angin > 2) cbScore += 1;
-  if(angin > 5) cbScore += 1;
-
-  if(pressure < 1008) cbScore += 1;
-  if(pressure < 1005) cbScore += 1;
-
-  if(isDay){
-    if(isMidDay && uvValue <= 3) cbScore += 1;
-    if(isMidDay && uvValue <= 2) cbScore += 1;
-    if(uvValue = 0) cbScore += 1;
-  }
-
-  if(cbScore >= 6){
-    return "Cumulonimbus Lewat 🌪️";
-  }
-
-  /* ========================= */
-  /* ===== STRATIFORM ======== */
-  /* ========================= */
-
-  if(
-     cloudPercent > 85 &&
-     angin < 5 &&
-     humidity > 70
-  ){
-    return "Stratiform Overcast ☁️";
-  }
-
-  /* ========================= */
-  /* ===== BROKEN CLOUDS ===== */
-  /* ========================= */
-
-  if(cloudPercent >= 60){
+  if(low > 50){
     return "Stratocumulus 🌥️";
   }
 
-  if(cloudPercent >= 40){
-    return "Scattered Cumulus 🌥️";
+  if(low > 30 && cape < 200){
+    return "Cumulus Humilis 🌤️";
   }
 
-  /* ========================= */
-  /* ===== CLEAR SKY ========= */
-  /* ========================= */
+  /* =========================================================
+     4️⃣ MID CLOUD DOMINANT
+  ========================================================= */
 
-  return isDay ? "Clear Sky ☀️" : "Clear Night 🌙";
+  if(mid > 60){
+    return "Altostratus / Altocumulus ☁️";
+  }
+
+  /* =========================================================
+     5️⃣ HIGH CLOUD DOMINANT
+  ========================================================= */
+
+  if(high > 70){
+    if(isDay){
+      return "Cirrus / Cirrostratus ☁️";
+    } else {
+      return "High Cloud Night 🌙☁️";
+    }
+  }
+
+  if(high > 40){
+    return "Thin Cloud Layer 🌤️";
+  }
+
+  /* =========================================================
+     6️⃣ CLEAR CONDITIONS
+  ========================================================= */
+
+  if(totalCloud < 20){
+    if(isDay){
+      if(shortwave > 700 && uv > 6){
+        return "Clear Sky Strong Solar ☀️";
+      }
+      return "Mostly Clear ☀️";
+    } else {
+      return "Clear Night 🌙";
+    }
+  }
+
+  /* =========================================================
+     DEFAULT FALLBACK
+  ========================================================= */
+
+  return isDay ? "Mostly Clear ☀️" : "Clear Night 🌙";
 }
 
 function applyCloudColor(type){
 
   const el = document.getElementById("cloudType");
-
   el.style.fontWeight = "600";
 
   switch(type){
 
-    case "Cumulonimbus ⛈️":
-      el.style.color = "#ff4d4d"; // merah badai
+    /* =========================
+       ⚡ CUMULONIMBUS FAMILY
+    ========================= */
+
+    case "Cumulonimbus Aktif ⛈️":
+      el.style.color = "#ff1a1a"; // merah kuat badai aktif
       break;
 
-    case "Stratiform Overcast ☁️":
-      el.style.color = "#bfbfbf"; // abu mendung
+    case "Cumulonimbus Berkembang 🌩️":
+      el.style.color = "#ff4d4d"; // merah sedang
+      break;
+
+    case "Cumulonimbus Pasif 🌩️":
+      el.style.color = "#ff8080"; // merah lembut
+      break;
+
+    case "Cumulonimbus Lewat 🌪️":
+      el.style.color = "#ff6666"; // merah transisi
+      break;
+
+
+    /* =========================
+       🌧 HUJAN & OVERCAST
+    ========================= */
+
+    case "Nimbostratus ☁️🌧️":
+      el.style.color = "#a6a6a6"; // abu hujan
+      break;
+
+    case "Stratus Overcast ☁️":
+      el.style.color = "#bfbfbf"; // abu mendung tebal
+      break;
+
+    case "Overcast Night ☁️🌙":
+      el.style.color = "#8c8c8c"; // abu gelap malam
+      break;
+
+
+    /* =========================
+       🌥 LAPISAN MENENGAH
+    ========================= */
+
+    case "Altostratus / Altocumulus ☁️":
+      el.style.color = "#d9d9d9";
       break;
 
     case "Stratocumulus 🌥️":
-      el.style.color = "#ffffff"; // putih netral
+      el.style.color = "#f2f2f2";
       break;
 
-    case "Scattered Cumulus 🌥️":
-      el.style.color = "#ffffff"; // putih netral
+    case "Thin Cloud Layer 🌤️":
+      el.style.color = "#ffffff";
       break;
 
-    case "Clear Sky ☀️":
-      el.style.color = "#ffd633"; // kuning cerah
+
+    /* =========================
+       ☁️ AWAN TINGGI
+    ========================= */
+
+    case "Cirrus / Cirrostratus ☁️":
+      el.style.color = "#e6f2ff"; // putih kebiruan
       break;
+
+    case "High Cloud Night 🌙☁️":
+      el.style.color = "#aaccee";
+      break;
+
+
+    /* =========================
+       ☀️ CERAH
+    ========================= */
+
+    case "Clear Sky Strong Solar ☀️":
+      el.style.color = "#ffcc00"; // kuning terang
+      break;
+
+    case "Mostly Clear ☀️":
+      el.style.color = "#ffd966"; // kuning lembut
+      break;
+
+    case "Cumulus Humilis 🌤️":
+      el.style.color = "#ffffff";
+      break;
+
+    case "Clear Night 🌙":
+      el.style.color = "#aaccff"; // biru malam
+      break;
+
+
+    /* =========================
+       DEFAULT
+    ========================= */
 
     default:
       el.style.color = "#ffffff";
-
-case "Cumulonimbus Aktif ⛈️":
-case "Cumulonimbus Pasif 🌩️":
-case "Cumulonimbus Lewat 🌪️":
-  el.style.color = "#ff4d4d";
-  break;
-
-case "Clear Night 🌙":
-  el.style.color = "#aaccff";
-  break;
-
   }
-
 }
 
-function calculateOutdoorScore(feelLike, weatherMain, uv, wind, visibility){
+function calculateOutdoorScore(feelLike, weatherMain, uv, gust, visibility){
 
 let score = 10;
 
@@ -1472,10 +1773,10 @@ let score = 10;
 /* ===== UV ======== */
 /* ================= */
 
-if(uv >= 11) score -= 7;
-else if(uv >= 8) score -= 5;
-else if(uv >= 6) score -= 3;
-else if(uv >= 3) score -= 1;
+if(uv >= 11) score -= 8;
+else if(uv >= 8) score -= 6;
+else if(uv >= 6) score -= 4;
+else if(uv >= 3) score -= 2;
 
 
 /* ================= */
@@ -1483,17 +1784,22 @@ else if(uv >= 3) score -= 1;
 /* ================= */
 
 if(weatherMain.includes("thunderstorm")) score -= 9;
-else if(weatherMain.includes("rain")) score -= 7;
-else if(weatherMain.includes("drizzle")) score -= 5;
+else if(weatherMain.includes("rain")) score -= 5;
+else if(weatherMain.includes("drizzle")) score -= 3;
 else if(weatherMain.includes("mist") || weatherMain.includes("fog")) score -= 2;
+if(uv >= 1 && uv <= 3 &&
+   feelLike >= 22 && feelLike <= 30 &&
+   !weatherMain.includes("thunderstorm")||!weatherMain.includes("rain")) {
 
+   score += 1;
+}
 
 /* ================= */
 /* ===== WIND ======= */
 /* ================= */
 
-if(wind > 10) score -= 2;
-else if(wind > 5) score -= 1;
+if(gust > 10) score -= 2;
+else if(gust > 5) score -= 1;
 
 
 /* ================= */
@@ -1508,10 +1814,12 @@ else if(visibility < 6) score -= 1;
 /* ===== TEMP ======= */
 /* ================= */
 
-if(feelLike > 35) score -= 3;
-else if(feelLike > 32) score -= 2;
-else if(feelLike < 18) score -= 2;
-else if(feelLike < 14) score -= 3;
+if(feelLike > 37) score -= 3;
+else if(feelLike > 33) score -= 2;
+else if(feelLike > 29) score -= 1;
+else if(feelLike < 11) score -= 1;
+else if(feelLike < 6) score -= 2;
+else if(feelLike < 0) score -= 3;
 
 
 /* clamp */
@@ -1544,60 +1852,86 @@ return "🌡️";
 }
 
 //Perhitungan Peluang Hujan
-function calculateNonLinearRain(hum, press, cloud, weather, sunrise, sunset) {
+function calculateNonLinearRain(
+    hum,
+    pressureTrend,
+    cloud,
+    weather,
+    sunrise,
+    sunset
+){
+
     let score = 0;
     const now = Date.now() / 1000;
     const isNight = (now < sunrise || now > sunset);
 
-    // 1. Kelembapan (Pangkat 3)
-    let humFactor = Math.pow(hum / 100, 3) * 55; 
+    /* =========================
+       1️⃣ HUMIDITY (Cubic)
+    ========================= */
+    let humFactor = Math.pow(hum / 100, 3) * 55;
     score += humFactor;
 
-    // 2. Tekanan (Exponential) - Pemicu Utama
-    // Kita buat tekanan lebih dominan di malam hari untuk membuang efek embun
-    if (press < 1010) {
-        let pressDiff = 1010 - press;
-        let pressWeight = isNight ? 5 : 4; // Malam hari, tekanan rendah lebih "dicurigai"
-        score += Math.pow(pressDiff, 1.5) * pressWeight; 
+    /* =========================
+       2️⃣ PRESSURE TREND (Dynamic)
+    ========================= */
+
+    switch(pressureTrend){
+
+        case "Rapid Cyclonic Drop 🌪️":
+            score += 40;
+            break;
+
+        case "Convective Pressure Drop ⛈️":
+            score += 30;
+            break;
+
+        case "Diurnal Pressure Drop 🌅":
+            score += 10; // kecil saja
+            break;
+
+        case "Rising Pressure 🌤️":
+            score -= 25;
+            break;
+
+        case "Stable Pressure ☁️":
+        default:
+            score += 0;
     }
 
-// 3. Tutupan Awan (Non-Linear - Pangkat 2)
-    // Jika cloud 50% -> (0.5^2) * 20 = 5 poin
-    // Jika cloud 100% -> (1.0^2) * 20 = 20 poin (kenaikan tajam di akhir)
-    let cloudFactor = Math.pow(cloud / 100, 2) * 20;
+    /* =========================
+       3️⃣ CLOUD COVER (Quadratic)
+    ========================= */
+    let cloudFactor = Math.pow(cloud / 100, 2) * 25;
     score += cloudFactor;
 
-// === FILTER EMBUN MALAM (NON-LINEAR) ===
-if (isNight) {
-    // 1. Filter Tekanan (Semakin tinggi di atas 1010, semakin yakin itu embun)
-    if (press >= 1010) {
-        let pressStability = press - 1010; 
-        // Menggunakan pangkat 1.2 agar kenaikan tekanan 1012 ke 1013 potongannya makin terasa
-        let pressReduction = Math.pow(pressStability + 2, 2) * 4; 
-        score -= pressReduction;
+    /* =========================
+       🌙 NIGHT DEW FILTER
+    ========================= */
+    if(isNight){
+
+        let cloudClearness = 1 - (cloud / 100);
+        let cloudReduction = Math.pow(cloudClearness, 1.5) * 35;
+        score -= cloudReduction;
+
+        // Kalau rising pressure malam → hampir pasti bukan hujan
+        if(pressureTrend === "Rising Pressure 🌤️"){
+            score -= 20;
+        }
     }
 
-    // 2. Filter Tutupan Awan (Semakin sedikit awan, semakin yakin itu bukan hujan)
-    // Kita balik logikanya: (1 - cloud/100)
-    // Jika cloud 0% (cerah), pengurangan maksimal. Jika cloud 80%, pengurangan kecil.
-    let cloudClearness = 1 - (cloud / 100);
-    let cloudReduction = Math.pow(cloudClearness, 1.5) * 30;
-    score -= cloudReduction;
-
-    // 3. Efek Gabungan (Double Check)
-    // Kalau sudah tekanan tinggi DAN langit cerah, potong habis skornya
-    if (press >= 1010 && cloud < 40) {
-        score -= 20; 
-    }
-}
-
-    // Override Cuaca Langsung
+    /* =========================
+       ⛈️ HARD OVERRIDE
+    ========================= */
     const cond = weather.toLowerCase();
-    if (cond.includes("rain") || cond.includes("thunderstorm")) return 100;
-    
-    // Hasil Akhir (Minimal 5% kalau malam lembap)
+    if(cond.includes("rain") || cond.includes("thunderstorm")){
+        return 100;
+    }
+
+    /* =========================
+       FINAL NORMALIZATION
+    ========================= */
     let final = Math.min(Math.round(score), 99);
-    final = Math.max(final, 5); 
+    final = Math.max(final, 3);
 
     return final;
 }
