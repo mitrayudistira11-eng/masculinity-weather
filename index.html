@@ -444,7 +444,7 @@ fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&uni
     // ===============================
     // 2️⃣ FETCH OPEN METEO
     // ===============================
-    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,dew_point_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_7cm,soil_moisture_0_to_1cm&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_7cm,soil_moisture_0_to_1cm&forecast_days=1`)
+    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,dew_point_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_7cm,soil_moisture_0_to_1cm&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_7cm,soil_moisture_0_to_1cm&daily=temperature_2m_mean&past_days=7&forecast_days=1`)
     .then(res => res.json())
     .then(meteo => {
 
@@ -454,6 +454,14 @@ fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&uni
         console.log("OPEN WEATHER:", data);
         console.log("OPEN METEO:", meteoData);
         console.log("OPEN METEO HOURLY RECORD:", meteoData_record);
+
+	// --- LOGIKA HITUNG WEEKLY MEAN ---
+        // meteo.daily.temperature_2m_mean akan berisi array 8 data (7 hari lalu + hari ini)
+        const dailyArray = meteo.daily.temperature_2m_mean;
+        const validData = dailyArray.filter(t => t !== null);
+        const weeklyMean = validData.reduce((a, b) => a + b, 0) / validData.length;
+
+        console.log(`Weekly Mean (7 Days): ${weeklyMean.toFixed(2)}°C`);
 
 const pressures = meteoData_record.pressure_msl || [];
 
@@ -506,7 +514,8 @@ meteoData.terrestrial_radiation,
 meteoData.surface_temperature,
 meteoData.cape,
 pressureTrend,
-meteoData.soil_moisture_0_to_1cm
+meteoData.soil_moisture_0_to_1cm,
+weeklyMean
 );
 
 const chance = calculateNonLinearRain(
@@ -767,17 +776,15 @@ const currentHour = now.getHours();
     return "Data Tidak Cukup";
   }
 
-  if(currentHour < 6){
-    return "Data Belum Cukup (Butuh 6 Jam Sebelumnya)";
-  }
+  const currentIndex = pressures.length - 1; 
 
-  const sekarang = pressures[currentHour];
-  const threeHoursAgo = pressures[currentHour - 3];
-  const sixHoursAgo = pressures[currentHour - 6];
+  const sekarang = pressures[currentIndex];
+  const threeHoursAgo = pressures[currentIndex - 3];
+  const sixHoursAgo = pressures[currentIndex - 6];
 
   const drop3h = sekarang - threeHoursAgo;
   const drop6h = sekarang - sixHoursAgo;
-  const drop1h = sekarang - pressures[currentHour - 1];
+  const drop1h = sekarang - pressures[currentIndex - 1];
 
   console.log("Pressure 1h change:", drop1h);
   console.log("Pressure 3h change:", drop3h);
@@ -883,7 +890,8 @@ function customFeelLike(
     surfaceTemp,
     cape,
     pressureTrend,
-    soilMoisture
+    soilMoisture,
+    weeklyMean
 ){
 
 const now = Date.now()/1000;
@@ -937,6 +945,9 @@ let feel = temp;
 
 let morningCoolMemory = 0;
 
+// Gunakan weeklyMean sebagai benchmark. Jika gagal, fallback ke 28.
+    const referenceTemp = weeklyMean || 28;
+
 if (hoursAfterSunrise >= -3 && hoursAfterSunrise <= 1) {
     
     // 1. DINAMIKA KEKUATAN (Strength berdasarkan Langit)
@@ -944,10 +955,9 @@ if (hoursAfterSunrise >= -3 && hoursAfterSunrise <= 1) {
     // Di iklim mendung/lembab, penurunan suhu lebih tertahan.
     let skyFactor = 1 + ( (100 - cloudPercent) / 100 ); // Range 1.0 (mendung) s/d 2.0 (cerah)
     
-    // Base strength yang menyesuaikan suhu lokal
-    let baseStrength = Math.max(0, (28 - temp) * 0.5); 
-    let finalStrength = baseStrength * skyFactor;
-
+// Sekarang baseStrength menghitung selisih dari "Suhu Normal Mingguan"
+        let baseStrength = Math.max(0, (referenceTemp - temp) * 0.5); 
+        let finalStrength = baseStrength * skyFactor;
     // Batasi agar tidak ekstrem (Max 5 derajat pengurang)
     finalStrength = Math.min(5, finalStrength);
 
