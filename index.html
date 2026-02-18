@@ -1013,7 +1013,7 @@ if(isDay){
         timeWeight *
         uvModifier *
         cloudModifier *
-        3.0;
+        3.5;
 
     console.log(`Solar Factor: ${solarFactor.toFixed(2)}°C`);
 
@@ -1466,14 +1466,14 @@ const sinElev =
 Math.sin(latRad)*Math.sin(decRad) +
 Math.cos(latRad)*Math.cos(decRad)*Math.cos(hRad);
 
-const sunFactor = Math.pow(Math.max(0, sinElev), 1.25);
+const sunFactor = Math.pow(Math.max(0, sinElev), 1.15);
 
 /* ========================= */
 /* ===== BASE UV (physics) == */
 /* ========================= */
 
 let maxUV = 11 + (2 * Math.cos(latRad));
-const airMass = 1 / Math.pow(Math.max(0, sinElev), 1.25);
+const airMass = 1 / Math.pow(Math.max(0, sinElev), 1.15);
 let uv = maxUV * sunFactor / Math.pow(airMass, 0.1);
 
 
@@ -1529,7 +1529,7 @@ const thicknessTransmission = Math.exp(-k * thicknessIndex);
 const combinedTransmission =
   (1 - reduction) * thicknessTransmission;
 
-uv *= combinedTransmission*1.1;
+uv *= combinedTransmission*1.15;
 
 /* ========================= */
 /* ===== SUN BREAK SMOOTH == */
