@@ -524,7 +524,9 @@ const chance = calculateNonLinearRain(
     data.clouds.all, 
     data.weather[0].main,
     data.sys.sunrise,
-    data.sys.sunset
+    data.sys.sunset,
+meteoData.precipitation,
+meteoData.precipitation_probability
 );
 
 // --- UPDATE UI BAR & TEKS STATUS ---
@@ -1953,78 +1955,77 @@ function calculateNonLinearRain(
     cloud,
     weather,
     sunrise,
-    sunset
+    sunset,
+    precipitation, // Data baru: mm hujan
+    pop            // Data baru: Probability of Precipitation (%)
 ){
-
     let score = 0;
     const now = Date.now() / 1000;
     const isNight = (now < sunrise || now > sunset);
 
-    /* =========================
-       1️⃣ HUMIDITY (Cubic)
-    ========================= */
-    let humFactor = Math.pow(hum / 100, 3) * 55;
-    score += humFactor;
-
-    /* =========================
-       2️⃣ PRESSURE TREND (Dynamic)
-    ========================= */
-
-    switch(pressureTrend){
-
-        case "Rapid Cyclonic Drop 🌪️":
-            score += 40;
-            break;
-
-        case "Convective Pressure Drop ⛈️":
-            score += 30;
-            break;
-
-        case "Diurnal Pressure Drop 🌅":
-            score += 10; // kecil saja
-            break;
-
-        case "Rising Pressure 🌤️":
-            score -= 25;
-            break;
-
-        case "Stable Pressure ☁️":
-        default:
-            score += 0;
-    }
-
-    /* =========================
-       3️⃣ CLOUD COVER (Quadratic)
-    ========================= */
-    let cloudFactor = Math.pow(cloud / 100, 2) * 25;
-    score += cloudFactor;
-
-    /* =========================
-       🌙 NIGHT DEW FILTER
-    ========================= */
-    if(isNight){
-
-        let cloudClearness = 1 - (cloud / 100);
-        let cloudReduction = Math.pow(cloudClearness, 1.5) * 35;
-        score -= cloudReduction;
-
-        // Kalau rising pressure malam → hampir pasti bukan hujan
-        if(pressureTrend === "Rising Pressure 🌤️"){
-            score -= 20;
-        }
-    }
-
-    /* =========================
-       ⛈️ HARD OVERRIDE
-    ========================= */
+    /* ======================================= */
+    /* 0️⃣ HARD OVERRIDE (REAL-TIME DETECTION)   */
+    /* ======================================= */
+    
+    // Jika API mendeteksi hujan aktual > 0.1mm atau status "Rain"
     const cond = weather.toLowerCase();
-    if(cond.includes("rain") || cond.includes("thunderstorm")){
+    if(precipitation > 0 || cond.includes("rain") || cond.includes("thunderstorm")){
         return 100;
     }
 
-    /* =========================
-       FINAL NORMALIZATION
-    ========================= */
+    /* ======================================= */
+    /* 1️⃣ PRECIPITATION PROBABILITY (Anchor)   */
+    /* ======================================= */
+    
+    // Kita gunakan data probabilitas dari API sebagai "Nilai Dasar"
+    // Tapi kita beri bobot agar logika fisik Bapak tetap bermain
+    let popBase = (pop || 0) * 0.6; 
+    score += popBase;
+
+    /* ======================================= */
+    /* 2️⃣ HUMIDITY (Cubic)                      */
+    /* ======================================= */
+    let humFactor = Math.pow(hum / 100, 3) * 40; // Disesuaikan sedikit bobotnya
+    score += humFactor;
+
+    /* ======================================= */
+    /* 3️⃣ PRESSURE TREND (Dynamic)             */
+    /* ======================================= */
+    switch(pressureTrend){
+        case "Rapid Cyclonic Drop 🌪️": score += 35; break;
+        case "Convective Pressure Drop ⛈️": score += 25; break;
+        case "Diurnal Pressure Drop 🌅": score += 5; break;
+        case "Rising Pressure 🌤️": score -= 25; break;
+        default: score += 0;
+    }
+
+    /* ======================================= */
+    /* 4️⃣ CLOUD COVER (Quadratic)              */
+    /* ======================================= */
+    let cloudFactor = Math.pow(cloud / 100, 2) * 20;
+    score += cloudFactor;
+
+    /* ======================================= */
+    /* 🌙 NIGHT DEW FILTER                     */
+    /* ======================================= */
+    if(isNight){
+        let cloudClearness = 1 - (cloud / 100);
+        let cloudReduction = Math.pow(cloudClearness, 1.5) * 30;
+        score -= cloudReduction;
+
+        if(pressureTrend === "Rising Pressure 🌤️"){
+            score -= 15;
+        }
+    }
+
+    /* ======================================= */
+    /* FINAL NORMALIZATION                     */
+    /* ======================================= */
+    
+    // Jika POP dari API sudah tinggi (misal > 70%), 
+    // pastikan skor akhir tidak terlalu rendah
+    if(pop >= 70) score = Math.max(score, pop - 5);
+
     let final = Math.min(Math.round(score), 99);
     final = Math.max(final, 3);
 
