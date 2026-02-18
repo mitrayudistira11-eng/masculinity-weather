@@ -463,7 +463,61 @@ fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&uni
 
         console.log(`Weekly Mean (7 Days): ${weeklyMean.toFixed(2)}°C`);
 
+
+//Cek Update Data API
+
 const pressures = meteoData_record.pressure_msl || [];
+
+// 1. Waktu Lokal Browser
+    const localTime = new Date().toLocaleTimeString('id-ID');
+
+    // 2. Timestamp Server Open-Meteo (Format: YYYY-MM-DDTHH:MM)
+const rawTime = meteo.current ? meteo.current.time : null;
+let server1Time = "N/A";
+
+if (rawTime) {
+    const [datePart, timePart] = rawTime.split('T');
+    let [hour, minute] = timePart.split(':');
+    
+    // Tambahkan 8 jam untuk WITA
+    let witaHour = parseInt(hour) + 8;
+    
+    // Jika lebih dari 24 jam, berarti ganti hari (opsional tapi bagus buat akurasi)
+    if (witaHour >= 24) {
+        witaHour -= 24;
+        // Catatan: Tanggalnya tidak berubah di sini karena ini logic simpel, 
+        // tapi jamnya akan benar (misal jam 23 UTC jadi jam 07 WITA)
+    }
+
+    const formattedHour = String(witaHour).padStart(2, '0');
+    server1Time = `${datePart} ${formattedHour}:${minute} WITA`;
+}
+
+// 3. Timestamp Server OpenWeatherMap (Format Unix)
+    // OWM biasanya meletakkan waktu di api2.dt (Current API) atau api2.current.dt (One Call API)
+    const owmUnix = data.dt || (data.current ? data.current.dt : null);
+    let server2Time = "N/A";
+
+    if (owmUnix) {
+        const dateOWM = new Date(owmUnix * 1000); // Kalikan 1000 untuk milidetik
+        server2Time = dateOWM.getHours().toString().padStart(2, '0') + ":" + 
+                      dateOWM.getMinutes().toString().padStart(2, '0') + ":" + 
+                      dateOWM.getSeconds().toString().padStart(2, '0');
+    }
+
+    // --- MONITORING SERVER DI CONSOLE ---
+    console.log("======================================");
+    console.log(`📡 SYNC STATUS [${localTime}]`);
+    console.log(`⏱️ Open-Meteo Server : ${server1Time}`);
+    console.log(`⏱️ OpenWeather Server: ${server2Time} (OWM)`);
+    
+    // Cek perbandingan kesegaran data
+    console.log("--------------------------------------");
+if (server2Time !== "N/A") {
+        console.log("💡 Tips: Jika jam OWM lebih baru (mendekati jam lokal) dibanding Open-Meteo,");
+        console.log("   berarti OWM memberikan data yang lebih fresh saat ini.");
+    }
+    console.log("======================================");
 
 setDynamicBackground(
 data.weather[0].main.toLowerCase(),
@@ -655,8 +709,68 @@ gustStatusLabel.style.color = barColor;
 gustFill.style.width = barWidth;
 gustFill.style.background = barColor;
 
-document.getElementById("desc").innerText=
-"RealFeel "+feel+"°C | "+icon+" "+data.weather[0].description;
+
+const lastIndex = meteo.hourly.pressure_msl.length - 1;
+
+const pressNow = meteo.hourly.pressure_msl[lastIndex];      // Jam Sekarang
+const press1h  = meteo.hourly.pressure_msl[lastIndex - 1];  // 1 Jam Lalu
+
+// Menghitung selisih (Trend)
+const drop1h = pressNow - press1h;
+
+// 2. Ambil data mentah (Raw Data)
+const rawHum = humi; // Humidity (%)
+const rawCloud = awan; // Cloud Cover (%)
+const rawPress = drop1h; // Pressure change (hPa)
+
+/* ======================================= 
+   🚨 THE HAKIM LOGIC (ANTI-NGAWUR)
+   ======================================= */
+
+let weatherDesc = data.weather[0].description;
+let weatherIcon = icon;
+
+// 1. VETO TEKANAN (Deteksi Badai Lewat Tekanan Udara)
+// Jika tekanan turun tajam (<-1.0 hPa), biasanya awan badai sedang mendekat
+if (rawPress < -1.0 && !weatherDesc.includes("rain")) {
+    weatherDesc = "instabilitas terdeteksi (tekanan drop) ⛈️";
+    weatherIcon = "⛈️";
+}
+
+// 2. VETO KELEMBAPAN (Deteksi Hujan Lokal)
+if (rawHum > 92 && !weatherDesc.includes("rain")) {
+    weatherDesc = "sangat lembap / potensi hujan 🌧️";
+    weatherIcon = "🌧️";
+}
+
+// 3. VETO AWAN (Deteksi Mendung Satelit)
+if (rawCloud > 85 && (weatherDesc.includes("clear") || weatherDesc.includes("sunny"))) {
+    weatherDesc = "mendung pekat (cloudy) ☁️";
+    weatherIcon = "☁️";
+}
+
+// Modifikasi Veto Kelembapan (Nomor 2)
+if (rawHum < 50 && rawCloud > 85) {
+    // Jika udara kering tapi awan tebal, berarti "Mendung Kering"
+    weatherDesc = "Mendung (Udara Kering) ☁️";
+} else if (rawHum > 90 && !weatherDesc.includes("rain")) {
+    weatherDesc = "Sangat Lembap / Potensi Hujan 🌧️";
+}
+
+const curahHujan = meteo.current.precipitation; // atau dari hourly[lastIndex]
+
+if (curahHujan > 0) {
+    weatherDesc = "Hujan (detected by satellite) 🌧️";
+    weatherIcon = "🌧️";
+    // Opsional: Jika hujannya deras (> 2.0mm)
+    if (curahHujan > 2) {
+        weatherDesc = "Hujan Lebat (detected by satellite) ⛈️";
+        weatherIcon = "⛈️";
+    }
+}
+
+document.getElementById("desc").innerText = 
+    `RealFeel ${feel}°C | ${weatherIcon} ${weatherDesc}`;
 
 /* ===== EXTRA DATA ===== */
 
