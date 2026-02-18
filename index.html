@@ -670,12 +670,13 @@ const pressure=data.main.pressure;
 const cloud = data.clouds.all;
 const sunrise=formatTime(data.sys.sunrise);
 const sunset=formatTime(data.sys.sunset);
+const gust = data.wind.gust;
 
 const outdoorScore = calculateOutdoorScore(
 feel,
 data.weather[0].main.toLowerCase(),
 uvData.value,
-data.wind.gust,
+gust,
 visibility
 );
 
@@ -744,6 +745,12 @@ warning+=" ⚠️ Waspadai crosswind saat riding.";
 
 if(data.weather[0].main.toLowerCase().includes("thunderstorm")){
 warning="⛔ Badai petir! Tidak disarankan riding.";
+}
+
+if(outdoorScore < 4){
+warning="⛔ Tidak disarankan riding motor custom!!!";
+} else if(outdoorScore < 8){
+warning="⚠️ Batasi riding motor custom!!!";
 }
 
 document.getElementById("warning").innerHTML="<b>Safety Riding:</b><br>"+warning;
@@ -1219,7 +1226,7 @@ let warning="";
 if(feelLike >= 38){
 outfit="Tanktop breathable / kaos boxy dry-fit + flanel tipis (dibuka) + cargo short + high socks + sneakers mesh ringan + sunglasses + sling bag + sunscreen";
 activity="Built Up Custom indoor, Gym ringan pagi/sore. Hindari riding/aktivitas outdoor saat siang terik.";
-warning = "⚠️ cuaca panas ekstrem, gunakan alat pendingin ruangan untuk membuat zona suhu nyaman anda tetap stabil.";    
+warning = "⚠️ cuaca panas ekstrem, gunakan alat pendingin ruangan untuk membuat zona suhu nyaman anda tetap stabil. ";    
 }
 
 else if(feelLike >= 35){
@@ -1263,8 +1270,11 @@ activity="Fokus indoor: Built Up Custom detail, perencanaan proyek, latihan takt
 
 if(outdoor < 8){
 activity += " ⚠️ Batasi Kegiatan Outdoor!!!";
+warning += " ⚠️ Batasi Kegiatan Outdoor!!!";
 }else if(outdoor < 4){
 activity = "⛔ Tunda Semua Kegiatan Outdoor!!! Disarankan Aktivitas Produktif Indoor";
+warning += " ⛔ Tunda Semua Kegiatan Outdoor!!! Disarankan Aktivitas Produktif Indoor";
+
 }
 
 /* ============================= */
@@ -1321,17 +1331,18 @@ function getLayeredCloudReduction(low, mid, high){
     const h = high / 100;
 
     // Transmission per layer (nonlinear exponential decay)
-    // Angka 3.0, 1.8, 0.8 adalah kekuatan optikal relatif
+    // Angka 2.0, 1.5, 0.6 adalah kekuatan optikal relatif
 
-    const T_low  = Math.exp(-3.0 * Math.pow(l, 1.4));
-    const T_mid  = Math.exp(-1.8 * Math.pow(m, 1.3));
-    const T_high = Math.exp(-0.8 * Math.pow(h, 1.2));
+    const T_low  = Math.exp(-1.2 * Math.pow(l, 1.4));
+    const T_mid  = Math.exp(-0.7 * Math.pow(m, 1.3));
+    const T_high = Math.exp(-0.12 * Math.pow(h, 1.2));
 
-    // Total transmission (multiplicative physics)
-    const totalTransmission = T_low * T_mid * T_high;
+const combined =
+    0.37 * T_mid +
+    0.11 * T_high +
+    0.52 * T_low;
 
-    // Reduction adalah kebalikan transmission
-    const reduction = 1 - totalTransmission;
+const reduction = 1 - combined;
 
     return Math.min(reduction, 0.97);
 }
@@ -1382,13 +1393,13 @@ if(weatherMain.includes("mist") || weatherMain.includes("fog")){
 
     // Humidity (Efek Difusi Uap Air)
     if (humidity > 85) {
-        const humidFactor = (humidity - 85) / 30; // Rentang 0.0 s/d 1.0
+        const humidFactor = (humidity - 85) / 15; // Rentang 0.0 s/d 1.0
         // Jika humidity 100%, reduction bertambah 0.15 (lebih kuat dari sebelumnya)
         reduction += Math.pow(humidFactor, 2) * 0.15; 
     }
 
 /* clamp biar gak over */
-reduction = Math.min(reduction, 1);
+reduction = Math.min(reduction, 0.97);
 
 return reduction;
 }
@@ -1440,15 +1451,15 @@ const sinElev =
 Math.sin(latRad)*Math.sin(decRad) +
 Math.cos(latRad)*Math.cos(decRad)*Math.cos(hRad);
 
-const sunFactor = Math.max(0, sinElev);
-
+const sunFactor = Math.pow(Math.max(0, sinElev), 1.25);
 
 /* ========================= */
 /* ===== BASE UV (physics) == */
 /* ========================= */
 
 let maxUV = 11 + (2 * Math.cos(latRad));
-let uv = maxUV * sunFactor;
+const airMass = 1 / Math.pow(Math.max(0, sinElev), 1.25);
+let uv = maxUV * sunFactor / Math.pow(airMass, 0.1);
 
 
 /* ========================= */
@@ -1470,22 +1481,79 @@ let reduction = getCloudReduction(
   highcloud
 );
 
-uv *= (1 - reduction);
-
-
 /* ========================= */
-/* ===== WEATHER MOD ======= */
+/* ===== EST. THICKNESS ==== */
 /* ========================= */
 
-weatherMain = weatherMain.toLowerCase();
+// normalisasi layer
+const low = lowcloud ?? cloud;
+const mid = midcloud ?? cloud;
+const high = highcloud ?? cloud;
 
+// bobot layer (low paling tebal)
+let thicknessIndex =
+  (low * 0.6) +
+  (mid * 0.35) +
+  (high * 0.05);
 
+// humidity boost (awan basah lebih tebal)
+thicknessIndex *= 1 + ((humidity ?? 80) - 70) / 200;
+
+// visibility penalty (jarak pandang rendah → lebih tebal)
+if (visibility) {
+  const visFactor = Math.max(0.5, Math.min(1.2, 10000 / visibility));
+  thicknessIndex *= visFactor;
+}
+
+// clamp biar nggak liar
+thicknessIndex = Math.max(0, Math.min(50, thicknessIndex / 2));
+
+const k = 0.035;
+const thicknessTransmission = Math.exp(-k * thicknessIndex);
+
+const combinedTransmission =
+  (1 - reduction) * thicknessTransmission;
+
+uv *= combinedTransmission*1.1;
 
 /* ========================= */
-/* ===== VISIBILITY MOD ==== */
+/* ===== SUN BREAK SMOOTH == */
 /* ========================= */
 
+// solar elevation derajat
+const solarElevationDeg =
+  Math.asin(Math.max(-1, Math.min(1, sinElev))) * 180/Math.PI;
 
+// deteksi sun break
+const isSunBreak =
+  cloud >= 30 && cloud <= 95 &&
+  solarElevationDeg > 25 &&
+  weatherMain.includes("cloud");
+
+if (isSunBreak) {
+
+  // waktu dalam menit untuk phase natural
+  const timePhase = now / 60; 
+
+  // oscillation halus (periode ±6 menit)
+  const smoothWave =
+    Math.sin(timePhase * 0.017); 
+
+  // amplitudo 6–12% tergantung kepadatan awan
+  const densityFactor = (cloud - 30) / 65; 
+  const amplitude = 0.06 + (densityFactor * 0.06);
+
+  uv *= (1 + smoothWave * amplitude);
+
+  // cloud edge enhancement ringan (jarang & halus)
+  if (solarElevationDeg > 55 && Math.sin(timePhase * 0.003) > 0.98) {
+    uv *= 1.08;
+  }
+
+  // cap fisik
+  const theoreticalMax = maxUV * sunFactor;
+  uv = Math.min(uv, theoreticalMax * 1.2);
+}
 
 
 /* ========================= */
@@ -1556,8 +1624,8 @@ if(
 // ===============================
 if(
   cape > 800 &&
-  low > 30 &&
-  mid > 30
+  low > 40 &&
+  mid > 70
 ){
   return "Cumulonimbus Berkembang 🌩️";
 }
@@ -1568,7 +1636,7 @@ if(
 if(
   weatherMain.includes("rain") &&
   cape > 500 &&
-  cape <= 800
+  cape <= 1000
 ){
   return "Cumulonimbus Pasif 🌩️";
 }
@@ -1577,10 +1645,11 @@ if(
 // 4️⃣ Cb Lewat (anvil sisa)
 // ===============================
 if(
-  cape < 700 &&
-  high > 50 &&
-  mid > 20 &&
-  angin >= 5
+  cape > 800 &&
+  high > 70 &&
+  mid > 50 &&
+  low < 30 &&
+  angin >= 8
 ){
   return "Cumulonimbus Lewat 🌪️";
 }
@@ -1798,8 +1867,8 @@ if(uv >= 1 && uv <= 3 &&
 /* ===== WIND ======= */
 /* ================= */
 
-if(gust > 10) score -= 2;
-else if(gust > 5) score -= 1;
+if(gust > 9) score -= 2;
+else if(gust > 4) score -= 1;
 
 
 /* ================= */
@@ -1826,6 +1895,7 @@ else if(feelLike < 0) score -= 3;
 score = Math.max(1, Math.min(10, score));
 
 return score;
+console.log("Gust:", gust);
 }
 
 
