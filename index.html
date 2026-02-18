@@ -777,7 +777,9 @@ const currentHour = now.getHours();
 
   const drop3h = sekarang - threeHoursAgo;
   const drop6h = sekarang - sixHoursAgo;
+  const drop1h = sekarang - pressures[currentHour - 1];
 
+  console.log("Pressure 1h change:", drop1h);
   console.log("Pressure 3h change:", drop3h);
   console.log("Pressure 6h change:", drop6h);
 
@@ -785,26 +787,39 @@ const currentHour = now.getHours();
      TROPICAL CLASSIFICATION
   ============================== */
 
-  // Rapid system drop
+/* ==============================================
+      TROPICAL CLASSIFICATION (1h & 3h Combined)
+     ============================================== */
+
+  // 1. Rapid system drop (6h tetap prioritas tertinggi untuk sistem besar)
   if(drop6h <= -6){
     return "Rapid Cyclonic Drop 🌪️";
   }
 
-  // Strong convective signal
-  if(drop3h <= -3){
+  // 2. Strong convective signal (Diperkuat dengan deteksi cepat 1 jam)
+  // Menangkap badai lokal lebih cepat jika drop 1h tajam ATAU total 3h sudah tembus -3
+  if(drop1h <= -1.1 || drop3h <= -3){
     return "Convective Pressure Drop ⛈️";
   }
 
-  // Normal diurnal oscillation
-  if(drop3h <= -2 && drop3h > -3){
+  // 3. Normal diurnal oscillation (Drop)
+  // Ditambahkan validasi drop1h < 0 agar lebih sinkron dengan tren turun
+  if(drop3h <= -1.5 && drop3h > -3){
     return "Diurnal Pressure Drop 🌅";
   }
 
-  // Rising pressure (clearing sky)
-  if(drop3h >= 2){
+  // 4. Normal diurnal oscillation (Rise)
+  if(drop3h < 3 && drop3h >= 1.5){
+    return "Diurnal Pressure Rise 🌅";
+  }
+
+  // 5. Rising pressure (clearing sky)
+  // Jika kenaikan 3 jam signifikan, langit biasanya terbuka
+  if(drop3h >= 3){
     return "Rising Pressure 🌤️";
   }
 
+  // 6. Default
   return "Stable Pressure ☁️";
 }
 
