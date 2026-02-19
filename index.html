@@ -762,7 +762,7 @@ if (rawCloud > 85 && (weatherDesc.includes("clear") || weatherDesc.includes("sun
 } else
 
 // F. VETO SATELIT (Real-time Precipitation)
-if (curahHujan > 0) {
+if (curahHujan > 0.4) {
     weatherDesc = "Hujan (Detected by Satellite) 🌧️";
     weatherIcon = "🌧️";
     if (curahHujan > 2) {
@@ -2372,4 +2372,3 @@ autoUpdateScheduler();
 
 </body>
 </html>
-
