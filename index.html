@@ -286,85 +286,79 @@ clockEl.innerText=new Date().toLocaleTimeString();
 },1000);
 
 /* ================= BACKGROUND ENGINE (FIXED) ================= */
-function setDynamicBackground(weatherMain, sunrise, sunset, cloudPercent){
+// --- FUNGSINYA ---
+function setDynamicBackground(currentIcon, sunrise, sunset, cloudPercent){
+    const body = document.body;
+    const sunMoon = document.getElementById("sunMoon");
+    const stars = document.getElementById("stars");
+    const clouds = document.getElementById("clouds");
+    const fog = document.getElementById("fog");
+    const rain = document.getElementById("rain");
+    const flash = document.getElementById("flash");
+    
+    // Pastikan interval petir lama dibersihkan
+    if(window.lightningInterval) stopLightning();
 
-const body=document.body;
-const sunMoon=document.getElementById("sunMoon");
-const stars=document.getElementById("stars");
-const clouds=document.getElementById("clouds");
-const fog=document.getElementById("fog");
-const rain=document.getElementById("rain");
-const flash = document.getElementById("flash");
-let lightningInterval=null;
+    body.className = "";
+    const now = Date.now() / 1000;
 
-body.className="";
+    /* 1. TIME MODE LOGIC */
+    let mode = "night";
+    if(now < sunrise) mode = "night";
+    else if(now < sunrise + 3600) mode = "morning";
+    else if(now < sunset - 3600) mode = "day";
+    else if(now < sunset) mode = "evening";
+    else mode = "night";
 
-const now=Date.now()/1000;
+    body.classList.add(mode);
 
-/* time mode */
-let mode="night";
+    /* 2. SUN/MOON & STARS DISPLAY */
+    sunMoon.className = "sunMoon " + (mode === "night" ? "moon" : "sun");
+    stars.style.opacity = (mode === "night") ? 1 : 0;
 
-if(now < sunrise){
-  mode="night";
+    /* 3. RESET WEATHER EFFECTS */
+    clouds.style.opacity = 0.2;
+    fog.style.opacity = 0;
+    rain.style.opacity = 0;
+    sunMoon.style.display = "block";
+    rain.innerHTML = "";
+
+    /* 4. CLOUD INTENSITY (Always active) */
+    setCloudIntensity(cloudPercent);
+
+    /* 5. WEATHER EFFECTS BASED ON ICON (THE HAKIM SINC) */
+    
+    // Jika Hujan (Icon 🌧️)
+    if(currentIcon === "🌧️"){
+        sunMoon.style.display = "none";
+        clouds.style.opacity = 0.8;
+        fog.style.opacity = 0.25;
+        rain.style.opacity = 1;
+        createRain(120); // Gerimis/Hujan sedang
+    }
+
+    // Jika Badai (Icon ⛈️)
+    if(currentIcon === "⛈️"){
+        sunMoon.style.display = "none";
+        clouds.style.opacity = 0.9;
+        fog.style.opacity = 0.35;
+        rain.style.opacity = 1;
+        createRain(220); // Hujan deras
+        startLightning(); // Nyalakan efek petir
+    }
+
+    // Jika Kabut (Icon 🌫️)
+    if(currentIcon === "🌫️"){
+        fog.style.opacity = 0.45;
+        clouds.style.opacity = 0.6;
+    }
+
+    // Jika Mendung Pekat (Icon ☁️)
+    if(currentIcon === "☁️"){
+        sunMoon.style.display = "none";
+        clouds.style.opacity = 0.8;
+    }
 }
-else if(now < sunrise + 3600){
-  mode="morning";
-}
-else if(now < sunset - 3600){
-  mode="day";
-}
-else if(now < sunset){
-  mode="evening";
-}
-else{
-  mode="night";
-}
-
-body.classList.add(mode);
-
-/* sun moon */
-sunMoon.className="sunMoon "+(mode==="night"?"moon":"sun");
-stars.style.opacity=(mode==="night")?1:0;
-
-/* weather effects */
-/* reset */
-clouds.style.opacity=.2;
-fog.style.opacity=0;
-rain.style.opacity=0;
-sunMoon.style.display="block";
-stopLightning();
-rain.innerHTML="";
-
-/* cloudy */
-setCloudIntensity(cloudPercent);
-
-/* rain */
-if(weatherMain.includes("rain") || weatherMain.includes("drizzle")){
-  sunMoon.style.display="none";
-  clouds.style.opacity=.8;
-  fog.style.opacity=.25;
-  rain.style.opacity=1;
-  createRain(120);
-}
-
-/* storm */
-if(weatherMain.includes("thunderstorm")){
-  sunMoon.style.display="none";
-  clouds.style.opacity=.9;
-  fog.style.opacity=.35;
-  rain.style.opacity=1;
-  createRain(220);
-  startLightning();
-}
-
-/* mist/fog */
-if(weatherMain.includes("mist") || weatherMain.includes("fog")){
-  fog.style.opacity=.45;
-}
-}
-
-const flash = document.getElementById("flash");
-let lightningInterval=null;
 
 /* HUJAN PARTICLE */
 function createRain(n){
@@ -379,23 +373,26 @@ function createRain(n){
   }
 }
 
-/* PETIR */
+/* --- PETIR ENGINE --- */
 function startLightning(){
-  lightningInterval=setInterval(()=>{
-    if(Math.random()<0.35){
-      flash.style.opacity=0.9;
-      setTimeout(()=>flash.style.opacity=0,80);
-      setTimeout(()=>{
-        flash.style.opacity=0.6;
-        setTimeout(()=>flash.style.opacity=0,60);
-      },120);
-    }
-  },1500);
+    // Gunakan window agar interval bisa diakses global untuk stop
+    window.lightningInterval = setInterval(() => {
+        const flash = document.getElementById("flash");
+        if(Math.random() < 0.35 && flash){
+            flash.style.opacity = 0.9;
+            setTimeout(() => flash.style.opacity = 0, 80);
+            setTimeout(() => {
+                flash.style.opacity = 0.6;
+                setTimeout(() => flash.style.opacity = 0, 60);
+            }, 120);
+        }
+    }, 1500);
 }
 
 function stopLightning(){
-  clearInterval(lightningInterval);
-  flash.style.opacity=0;
+    clearInterval(window.lightningInterval);
+    const flash = document.getElementById("flash");
+    if(flash) flash.style.opacity = 0;
 }
 
 function setCloudIntensity(percent){
@@ -518,13 +515,6 @@ if (server2Time !== "N/A") {
         console.log("   berarti OWM memberikan data yang lebih fresh saat ini.");
     }
     console.log("======================================");
-
-setDynamicBackground(
-data.weather[0].main.toLowerCase(),
-data.sys.sunrise,
-data.sys.sunset,
-data.clouds.all
-);
 
 const pressureTrend = detectPressureTrend(pressures);
 
@@ -713,64 +703,87 @@ gustFill.style.width = barWidth;
 gustFill.style.background = barColor;
 
 
-const lastIndex = meteo.hourly.pressure_msl.length - 1;
-
-const pressNow = meteo.hourly.pressure_msl[lastIndex];      // Jam Sekarang
-const press1h  = meteo.hourly.pressure_msl[lastIndex - 1];  // 1 Jam Lalu
-
-// Menghitung selisih (Trend)
-const drop1h = pressNow - press1h;
-
-// 2. Ambil data mentah (Raw Data)
-const rawHum = humi; // Humidity (%)
-const rawCloud = awan; // Cloud Cover (%)
-const rawPress = drop1h; // Pressure change (hPa)
-
 /* ======================================= 
-   🚨 THE HAKIM LOGIC (ANTI-NGAWUR)
+   🚨 THE HAKIM LOGIC (ANTI-NGAWUR) V2.0
    ======================================= */
 
+// 1. Definisikan Variabel Pendukung dari meteoData
+const lastIndex = meteoData_record.pressure_msl.length - 1;
+const pressNow  = meteoData_record.pressure_msl[lastIndex];
+const press3h   = meteoData_record.pressure_msl[lastIndex - 3] || pressNow;
+const delta3h   = pressNow - press3h; // Trend 3 jam (Penting untuk deteksi pemerasan awan)
+
+const uvNow       = uvData.value;
+const directRad   = meteoData.direct_radiation;
+const capeNow     = meteoData.cape;
+const curahHujan  = meteoData.precipitation;
+
+const rawHum   = data.main.humidity; // Dari OWM
+const rawCloud = data.clouds.all;    // Dari OWM
+const rawPress = pressNow - (meteoData_record.pressure_msl[lastIndex - 1]); // 1h Change
+
 let weatherDesc = data.weather[0].description;
-let weatherIcon = icon;
+let weatherIcon = icon; // Asumsi variabel icon sudah didefinisikan sebelumnya
+const currentHour = new Date().getHours();
+// --- START LOGIC OVERRIDE ---
 
-// 1. VETO TEKANAN (Deteksi Badai Lewat Tekanan Udara)
-// Jika tekanan turun tajam (<-1.0 hPa), biasanya awan badai sedang mendekat
+// A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik Bapak Tadi)
+// Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
+if (delta3h >= 1.0 && rawHum > 75 && rawCloud > 99 && curahHujan > 0 && curahHujan <= 1 ) {
+    weatherDesc = "Gerimis Tekanan Tinggi ☁️💧";
+    weatherIcon = "🌧️";
+} else
+
+// B. LOGIKA "ATMOSPHERIC SHIELD" (Kasus UV 2 Tengah Hari)
+if (currentHour >= 11 && currentHour <= 14 && uvNow <= 3 && rawCloud > 90) {
+    weatherDesc = "Mendung Syahdu (UV Shielding) 🛡️";
+    // Jangan ubah icon jika sudah hujan, biarkan tetap hujan
+} else
+
+// C. VETO TEKANAN (Deteksi Badai / Instabilitas)
 if (rawPress < -1.0 && !weatherDesc.includes("rain")) {
-    weatherDesc = "instabilitas terdeteksi (tekanan drop) ⛈️";
+    weatherDesc = "Instabilitas Terdeteksi (Tekanan Drop) ⛈️";
     weatherIcon = "⛈️";
-}
+} else
 
-// 2. VETO KELEMBAPAN (Deteksi Hujan Lokal)
-if (rawHum > 92 && !weatherDesc.includes("rain")) {
-    weatherDesc = "sangat lembap / potensi hujan 🌧️";
-    weatherIcon = "🌧️";
-}
-
-// 3. VETO AWAN (Deteksi Mendung Satelit)
-if (rawCloud > 85 && (weatherDesc.includes("clear") || weatherDesc.includes("sunny"))) {
-    weatherDesc = "mendung pekat (cloudy) ☁️";
-    weatherIcon = "☁️";
-}
-
-// Modifikasi Veto Kelembapan (Nomor 2)
+// D. VETO KELEMBAPAN & MENDUNG KERING
 if (rawHum < 50 && rawCloud > 85) {
-    // Jika udara kering tapi awan tebal, berarti "Mendung Kering"
     weatherDesc = "Mendung (Udara Kering) ☁️";
-} else if (rawHum > 90 && !weatherDesc.includes("rain")) {
+    weatherIcon = "☁️";
+} else if (rawHum > 92 && !weatherDesc.includes("rain") && !weatherDesc.includes("Gerimis")) {
     weatherDesc = "Sangat Lembap / Potensi Hujan 🌧️";
-}
-
-const curahHujan = meteo.current.precipitation; // atau dari hourly[lastIndex]
-
-if (curahHujan > 0) {
-    weatherDesc = "Hujan (detected by satellite) 🌧️";
     weatherIcon = "🌧️";
-    // Opsional: Jika hujannya deras (> 2.0mm)
+} else
+
+// E. VETO AWAN (Koreksi API Global)
+if (rawCloud > 85 && (weatherDesc.includes("clear") || weatherDesc.includes("sunny"))) {
+    weatherDesc = "Mendung Pekat (Cloudy) ☁️";
+    weatherIcon = "☁️";
+} else
+
+// F. VETO SATELIT (Real-time Precipitation)
+if (curahHujan > 0) {
+    weatherDesc = "Hujan (Detected by Satellite) 🌧️";
+    weatherIcon = "🌧️";
     if (curahHujan > 2) {
-        weatherDesc = "Hujan Lebat (detected by satellite) ⛈️";
+        weatherDesc = "Hujan Lebat (Satellite Confirmed) ⛈️";
         weatherIcon = "⛈️";
     }
 }
+
+// G. KHUSUS RAMADHAN (Optional Log Only)
+if (uvNow <= 2 && currentHour > 10 && currentHour < 15) {
+    console.log("Ramadhan Mode: Cuaca sangat bersahabat untuk puasa (Low UV).");
+}
+
+setDynamicBackground(
+    weatherIcon, // <--- Gunakan weatherIcon hasil Veto Hakim Logic
+    data.sys.sunrise,
+    data.sys.sunset,
+    data.clouds.all
+);
+
+/* ======================================= */
 
 document.getElementById("desc").innerText = 
     `RealFeel ${feel}°C | ${weatherIcon} ${weatherDesc}`;
@@ -800,12 +813,13 @@ const sunrise=formatTime(data.sys.sunrise);
 const sunset=formatTime(data.sys.sunset);
 const gust = data.wind.gust;
 
+// --- CARA PANGGILNYA ---
 const outdoorScore = calculateOutdoorScore(
-feel,
-data.weather[0].main.toLowerCase(),
-uvData.value,
-gust,
-visibility
+    feel,
+    weatherIcon, // <--- Menggunakan icon hasil olahan Hakim Logic
+    uvData.value,
+    gust,
+    data.visibility / 1000 // Konversi ke KM jika OWM dalam meter
 );
 
 const cloudType = detectCloudType({
@@ -2096,68 +2110,61 @@ function applyCloudColor(type){
   }
 }
 
-function calculateOutdoorScore(feelLike, weatherMain, uv, gust, visibility){
+// --- FUNGSINYA ---
+function calculateOutdoorScore(feelLike, currentIcon, uv, gust, visibility){
+    let score = 10;
 
-let score = 10;
+    /* ================= */
+    /* ===== UV ======== */
+    /* ================= */
+    // Penyesuaian: UV rendah di tengah hari (Shielding) tidak mengurangi skor banyak
+    if(uv >= 11) score -= 8;
+    else if(uv >= 8) score -= 6;
+    else if(uv >= 6) score -= 4;
+    else if(uv >= 3) score -= 2;
 
-/* ================= */
-/* ===== UV ======== */
-/* ================= */
+    /* ================= */
+    /* ===== WEATHER ==== */
+    /* ================= */
+    // Sinkronisasi menggunakan Icon hasil Hakim Logic
+    if(currentIcon === "⛈️") score -= 9;
+    else if(currentIcon === "🌧️") score -= 5;
+    else if(currentIcon === "☁️") score -= 1; // Mendung pekat potong tipis
+    else if(currentIcon === "🌫️") score -= 2; // Kabut
 
-if(uv >= 11) score -= 8;
-else if(uv >= 8) score -= 6;
-else if(uv >= 6) score -= 4;
-else if(uv >= 3) score -= 2;
+    // Bonus Skor untuk Kondisi "Syahdu" (UV rendah & Suhu Nyaman)
+    // Jika tidak ada icon hujan
+    if(uv >= 1 && uv <= 3 && 
+       feelLike >= 22 && feelLike <= 30 && 
+       currentIcon !== "🌧️" && currentIcon !== "⛈️") {
+       score += 1;
+    }
 
+    /* ================= */
+    /* ===== WIND ======= */
+    /* ================= */
+    if(gust > 9) score -= 2;
+    else if(gust > 4) score -= 1;
 
-/* ================= */
-/* ===== WEATHER ==== */
-/* ================= */
+    /* ================= */
+    /* ===== VISIBILITY = */
+    /* ================= */
+    if(visibility < 3) score -= 3;
+    else if(visibility < 6) score -= 1;
 
-if(weatherMain.includes("thunderstorm")) score -= 9;
-else if(weatherMain.includes("rain")) score -= 5;
-else if(weatherMain.includes("drizzle")) score -= 3;
-else if(weatherMain.includes("mist") || weatherMain.includes("fog")) score -= 2;
-if(uv >= 1 && uv <= 3 &&
-   feelLike >= 22 && feelLike <= 30 &&
-   !weatherMain.includes("thunderstorm")||!weatherMain.includes("rain")) {
+    /* ================= */
+    /* ===== TEMP ======= */
+    /* ================= */
+    if(feelLike > 37) score -= 3;
+    else if(feelLike > 33) score -= 2;
+    else if(feelLike > 29) score -= 1;
+    else if(feelLike < 11) score -= 1;
 
-   score += 1;
-}
+    /* Clamp & Return */
+    score = Math.max(1, Math.min(10, score));
 
-/* ================= */
-/* ===== WIND ======= */
-/* ================= */
-
-if(gust > 9) score -= 2;
-else if(gust > 4) score -= 1;
-
-
-/* ================= */
-/* ===== VISIBILITY = */
-/* ================= */
-
-if(visibility < 3) score -= 3;
-else if(visibility < 6) score -= 1;
-
-
-/* ================= */
-/* ===== TEMP ======= */
-/* ================= */
-
-if(feelLike > 37) score -= 3;
-else if(feelLike > 33) score -= 2;
-else if(feelLike > 29) score -= 1;
-else if(feelLike < 11) score -= 1;
-else if(feelLike < 6) score -= 2;
-else if(feelLike < 0) score -= 3;
-
-
-/* clamp */
-score = Math.max(1, Math.min(10, score));
-
-return score;
-console.log("Gust:", gust);
+    console.log(`Outdoor Score Debug: Score=${score}, Icon=${currentIcon}, UV=${uv}`);
+    return score;
 }
 
 
