@@ -553,6 +553,7 @@ meteoData.cloud_cover_high
 
 const feel = customFeelLike(
 data.main.temp,
+data.main.grnd_level,
 data.main.humidity,
 data.wind.speed,
 data.wind.gust,
@@ -574,9 +575,11 @@ weeklyMean
 
 const chance = calculateNonLinearRain(
     data.main.humidity, 
+    data.main.temp,
+    meteoData.cape,    
     pressureTrend, 
     data.clouds.all, 
-    data.weather[0].main,
+    data.weather[0].main.toLowerCase(),
     data.sys.sunrise,
     data.sys.sunset,
 meteoData.precipitation,
@@ -946,51 +949,56 @@ const currentHour = now.getHours();
   return "Stable Pressure ☁️";
 }
 
-function getWindEffect(temp, humidity, wind, gust){
+/* ======================================================= */
+/* === KOREKSI TEKANAN LOKAL (PRESSURE EFFECT ENGINE) === */
+/* ======================================================= */
+function calculate_pressure_effect(pressure) {
+    const STANDARD_P = 1013.25;
+    // Jika grnd_level tidak ada, default ke standar agar efek 0
+    let densityRatio = pressure ? (pressure / STANDARD_P) : 1;
+    
+    // Memberikan koreksi halus. Jika 1009 hPa, koreksi sekitar -0.01 s/d -0.05
+    // Berguna untuk universalitas (Puncak vs Pantai)
+    return (densityRatio - 1) * 2.5;
+}
 
+function getWindEffect(temp, humidity, wind, gust, weatherMain, pressure){
     const skinTemp = 34;
     let v = Math.max(wind || 0, gust);
 
     if(v < 0.5) return 0;
 
-    // ===== HITUNG DEW POINT =====
+    // Tambahan: Faktor Kepadatan Udara (Universal)
+    // Angin di dataran rendah (padat) lebih "terasa" dibanding dataran tinggi (tipis)
+    const densityFactor = pressure ? (pressure / 1013.25) : 1;
+
     const a = 17.27;
     const b = 237.7;
-
     const alpha = ((a * temp) / (b + temp)) + Math.log(humidity/100);
     const dew = (b * alpha) / (a - alpha);
 
-    // Selisih evaporasi (semakin besar semakin efektif)
-    let vaporGradient = skinTemp - dew;
-    vaporGradient = Math.max(0, vaporGradient);
+    let vaporGradient = Math.max(0, skinTemp - dew);
+    let evapEfficiency = Math.min(1.2, vaporGradient / 20);
 
-    // Normalisasi (0–1.2 kira-kira realistis)
-    let evapEfficiency = vaporGradient / 20;
-    evapEfficiency = Math.min(1.2, evapEfficiency);
-
-    // Ventilation dari angin
-    let windVent = Math.sqrt(v) * 0.9;
+    // Ventilasi angin kini dipengaruhi kepadatan udara lokal
+    let windVent = Math.sqrt(v) * 0.9 * densityFactor;
 
     let effect = 0;
-
-    // ===== COOLING MODE =====
     if(temp < skinTemp){
-
+        if (weatherMain.includes("rain") || weatherMain.includes("sleet") || weatherMain.includes("drizzle")) {
+            windVent *= 1.4; 
+        }
         effect = windVent * evapEfficiency;
-    }
-
-    // ===== HOT WIND MODE =====
-    else{
-
+    } else {
         let heatDelta = (temp - skinTemp) / 10;
         effect = - windVent * heatDelta * (1 - evapEfficiency);
     }
-
     return effect;
 }
 
 function customFeelLike(
     temp,
+    pressure,
     humidity,
     wind,
     gust,
@@ -1049,11 +1057,82 @@ const dew = (b * alpha) / (a - alpha);
 /* ========================= */
 
 let hour = new Date().getHours();
-let feel = temp;
+
+// =============================================
+    // 1. HITUNG PRESSURE EFFECT (UNIVERSAL)
+    // =============================================
+    const p_effect = calculate_pressure_effect(pressure);
+    let feel = temp + p_effect; // Masukkan koreksi tekanan di awal
+
+    console.log(`Pressure Effect: ${p_effect.toFixed(4)}°C (P: ${pressure} hPa)`);
 
 // ======================
-// MODE SIANG / PAGI
+// MODE SIANG dan MALAM
 // ======================
+
+/* ======================================================= */
+/* === UNIFIED HUMIDITY & TRANSITION LOGIC (THE HAKIM) === */
+/* ======================================================= */
+
+// 1. Persiapan Variabel Dasar
+const v_kmh = Math.max(wind || 0, gust) * 3.6;
+const normHumid = humidity / 100;
+const humStrength = Math.pow(Math.max(0, (humidity - 70) / 30), 1.5);
+const nonLinearHumidSiang = Math.pow(normHumid, 2) * 100;
+
+// 2. Hitung Dua Skenario Secara Paralel
+// --- Skenario A: Logika Siang (Gerah/Sumuk) ---
+let humFactorSiang = 0;
+let tempDeltaSiang = temp - 25;
+let multiplierSiang = 0.03;
+if (temp > 35) multiplierSiang += (Math.min(temp, 45) - 35) * 0.003;
+if (temp > 45) multiplierSiang = 0.07;
+
+if (temp > 25) {
+    humFactorSiang = (nonLinearHumidSiang * multiplierSiang) * (tempDeltaSiang * 0.2);
+} else {
+    humFactorSiang = (nonLinearHumidSiang * 0.005) * tempDeltaSiang;
+}
+
+// --- Skenario B: Logika Malam (Damp/Chill) ---
+let humFactorMalam = 0;
+if (temp >= 25) {
+    humFactorMalam = (temp - 25) * humStrength * 0.9;
+} else {
+    let windPower = Math.pow(v_kmh, 1.2);
+    let windFactor = 1.0 + (windPower * 0.1);
+    humFactorMalam = -(windFactor * humStrength);
+}
+
+// 3. LOGIKA CROSSFADE (Transisi Mulus)
+let finalHumidEffect = 0;
+
+// Jendela transisi: 1 jam (30 menit sebelum s/d 30 menit sesudah sunrise/sunset)
+// Kita hitung bobot siang (0 = Malam Total, 1 = Siang Total)
+let weightDay = 0;
+
+if (now > sunrise - 1800 && now < sunrise + 1800) {
+    // Transisi Sunrise
+    weightDay = (now - (sunrise - 1800)) / 3600;
+} else if (now > sunset - 1800 && now < sunset + 1800) {
+    // Transisi Sunset
+    weightDay = 1 - ((now - (sunset - 1800)) / 3600);
+} else {
+    weightDay = isDay ? 1 : 0;
+}
+
+// 4. MENGGABUNGKAN (Blending)
+finalHumidEffect = (humFactorSiang * weightDay) + (humFactorMalam * (1 - weightDay));
+
+// 5. Batasi agar tetap logis
+finalHumidEffect = Math.max(-4, Math.min(4, finalHumidEffect));
+
+// Tambahkan ke variabel 'feel' utama
+feel += finalHumidEffect;
+
+console.log(`--- HUMIDITY CROSSFADE ---`);
+console.log(`Weight Siang: ${(weightDay * 100).toFixed(1)}%`);
+console.log(`Final Humid Effect: ${finalHumidEffect.toFixed(2)}°C`);
 
 /* ============================================= */
 /* ===== UNIVERSAL PRE-MORNING COOL ENGINE ===== */
@@ -1066,16 +1145,25 @@ let morningCoolMemory = 0;
 
 if (hoursAfterSunrise >= -3 && hoursAfterSunrise <= 1) {
     
-    // 1. DINAMIKA KEKUATAN (Strength berdasarkan Langit)
-    // Di iklim kering/cerah, radiasi panas hilang lebih cepat (lebih dingin).
-    // Di iklim mendung/lembab, penurunan suhu lebih tertahan.
-    let skyFactor = 1 + ( (100 - cloudPercent) / 100 ); // Range 1.0 (mendung) s/d 2.0 (cerah)
-    
-// Sekarang baseStrength menghitung selisih dari "Suhu Normal Mingguan"
-        let baseStrength = Math.max(0, (referenceTemp - temp) * 0.5); 
-        let finalStrength = baseStrength * skyFactor;
-    // Batasi agar tidak ekstrem (Max 5 derajat pengurang)
-    finalStrength = Math.min(5, finalStrength);
+// 1. DINAMIKA KEKUATAN (Non-Linear Sky Factor)
+// Kita gunakan akar (Math.sqrt) agar saat cerah (100%), 
+// skyFactor tidak langsung melompat jadi 2.0, tapi lebih landai.
+let skyFactor = 1 + Math.sqrt((100 - cloudPercent) / 100); 
+
+// 2. NON-LINEAR BASE STRENGTH (Kurva Pangkat)
+// Semakin besar selisih suhu, kekuatannya naik secara kuadratik, 
+// tapi kita beri pengali kecil agar tidak liar.
+let tempDiff = Math.max(0, referenceTemp - temp);
+let baseStrength = Math.pow(tempDiff, 1.2) * 0.25; // Eksponen 1.2 bikin dia non-linear
+
+// 3. FINAL CALCULATION
+let finalStrength = baseStrength * skyFactor;
+
+// 4. SOFT CLAMPING (Agar tidak kaku di angka 5)
+// Daripada Math.min(5), kita pakai rumus pengurang tekanan agar mendekati 5 secara halus
+if (finalStrength > 5) {
+    finalStrength = 5 + (finalStrength - 5) * 0.2; // Diminishing returns
+}
 
     // 2. LOGIKA 3 TAHAP (Progressif)
     if (hoursAfterSunrise < -1.5) {
@@ -1096,13 +1184,26 @@ if (hoursAfterSunrise >= -3 && hoursAfterSunrise <= 1) {
 
 feel += morningCoolMemory;
 
+// Fluktuasi Atmosfer Pada Perkembangan Awan CB dan Pengaruh Pada Realfeel
+/* --------------------------------------------------------------- */
+/* CAPE > 800: Menggambarkan energi laten yang membuat rasa gerah  */
+/* sebelum badai (sumuk). Saat hujan, energi ini berubah menjadi   */
+/* massa udara dingin (downdraft) yang menekan suhu Realfeel.      */
+/* =============================================================== */
 let instabilityEffect = 0;
 
 if(cape > 800){
+    // Efek "Sumuk" karena energi atmosfer tinggi
     instabilityEffect = Math.sqrt(cape / 2000) * 1;
 
+    // Jika tekanan turun drastis (konvektif), tambah lagi rasa pengapnya
     if(pressureTrend === "Convective Pressure Drop ⛈️"){
         instabilityEffect += 1.0;
+    }
+    
+    // TAPI: Jika sudah hujan, efek sumuk ini harus dinetralkan
+    if(weatherMain.includes("rain") || weatherMain.includes("thunderstorm")) {
+        instabilityEffect *= -1.5; // Berubah jadi booster pendinginan (Downburst)
     }
 }
 
@@ -1144,38 +1245,45 @@ if(isDay){
     console.log(`Solar Factor: ${solarFactor.toFixed(2)}°C`);
 
   // beberapa kondisi cuaca → dingin
-  if(weatherMain.includes("drizzle")) feel -= 1.5;
-  if(weatherMain.includes("rain")) feel -= 3;
-  if(weatherMain.includes("thunderstorm")) feel -= 4;
-if(weatherMain.includes("mist") || weatherMain.includes("fog")) feel -= 0.1;
+// 1. Tentukan Multiplier berdasarkan suhu (Semakin dingin, semakin pedas efeknya)
+// Di suhu 0°C, multiplier bisa mencapai 2.25x
+let weatherMultiplier = 1 + (Math.max(0, 25 - temp) * 0.05);
 
-    let humidityFactor = 0;
-    let tempDelta = temp - 25; 
+let weather_cond = 0;
 
-    // Buat bobot kelembapan nonlinear (Pangkat 2)
-    // 0.5 (50%) jadi 0.25 | 0.9 (90%) jadi 0.81 | 1.0 (100%) tetap 1.0
-    let normalizedHumid = humidity / 100;
-    let nonLinearHumid = Math.pow(normalizedHumid, 2) * 100;
+// 2. Cek Kondisi Spesifik
+if (weatherMain.includes("sleet") || (weatherMain.includes("rain") && weatherMain.includes("snow"))) {
+    // SLEET: Hujan campur salju adalah yang terdingin secara sensasi
+    weather_cond = -4.5 * weatherMultiplier; 
+} 
+else if (weatherMain.includes("freezing rain")) {
+    // FREEZING RAIN: Hujan yang membeku saat kena permukaan
+    weather_cond = -5.0 * weatherMultiplier;
+}
+else if (weatherMain.includes("thunderstorm")) {
+    let stormBase = 2.5;
+    if (cape > 2000) stormBase += 1.5;
+    weather_cond = -stormBase * weatherMultiplier;
+} 
+else if (weatherMain.includes("rain")) {
+    let rainBase = 1.5;
+    if (gust > 20) rainBase += 1.0; 
+    weather_cond = -rainBase * weatherMultiplier;
+} 
+else if (weatherMain.includes("snow")) {
+    weather_cond = -3.0 * weatherMultiplier; // Salju kering biasanya tidak sedingin salju basah
+}
+else if (weatherMain.includes("drizzle")) {
+    weather_cond = -0.8 * weatherMultiplier;
+}
+else if (weatherMain.includes("mist") || weatherMain.includes("fog")) {
+    weather_cond = -1.2 * weatherMultiplier;
+}
 
-    if (temp > 25) {
-        // Logika Pemanasan (Gerah)
-        let multiplier = 0.03;
-        if (temp > 35) {
-            multiplier = 0.03 + (Math.min(temp, 45) - 35) * 0.003; 
-        }
-        if (temp > 45) multiplier = 0.07;
-        
-        // Menggunakan nonLinearHumid agar gerah terasa "nendang" di atas 90%
-        humidityFactor = (nonLinearHumid * multiplier) * (tempDelta * 0.2); 
-    } 
-    else {
-        // Logika Pendinginan (Chill)
-        // Semakin lembap, semakin dinginnya "nusuk" secara nonlinear
-        humidityFactor = (nonLinearHumid * 0.005) * tempDelta; 
+// 3. Eksekusi ke Variabel Feel
+feel += weather_cond;
 
-    }
-
-console.log(`humidity Factor: ${humidityFactor.toFixed(2)}°C`);
+console.log(`Main Weather Realfeel: ${weather_cond.toFixed(2)}°C (${weatherMain})`);
 
 //Cloud Cooling Bertahap
 
@@ -1203,11 +1311,11 @@ console.log(`humidity Factor: ${humidityFactor.toFixed(2)}°C`);
     console.log(`Progress Siang: ${(dayProgress * 100).toFixed(1)}%`);
     console.log(`Cloud Cooling: -${cloudCooling.toFixed(2)}°C`);
 
-   let windEffect = getWindEffect(temp, humidity, wind, gust);
+   let windEffect = getWindEffect(temp, humidity, wind, gust, weatherMain, pressure);
 
 console.log(`Wind Effect: ${windEffect.toFixed(2)}°C`);
 
-   feel += solarFactor + humidityFactor - windEffect;
+   feel += solarFactor - windEffect;
 
 console.log(`Feel Akhir: ${feel.toFixed(2)}°C`);
 
@@ -1265,30 +1373,6 @@ feel -= NightRadCooling
 
     console.log(`Night Rad Cooling: -${NightRadCooling.toFixed(2)}°C`);
 
-let humidityEffect = 0;
-
-if (humidity > 70) {
-    let tempDelta = temp - 25;
-
-    // Skala kelembapan (0 sampai 1)
-    let baseStrength = (humidity - 70) / 30; 
-    
-    // Gunakan Pangkat (misal pangkat 2 atau 1.5)
-    // Ini membuat 80% terasa ringan, tapi 98% terasa berat banget
-    let humidityStrength = Math.pow(baseStrength, 2); 
-
-    humidityEffect = tempDelta * humidityStrength;
-
-    // Batasi maksimum ±4°C (kita naikkan sedikit batasnya karena efek nonlinear)
-    humidityEffect = Math.max(-4, Math.min(4, humidityEffect));
-}
-
-if (humidityEffect > 0){
-feel += humidityEffect * 0.8;
-}else{
-feel += humidityEffect;
-}
-
 /* ========================= */
 /* ===== SOIL MOISTURE NIGHT COOLING ===== */
 /* ========================= */
@@ -1326,18 +1410,52 @@ if(typeof soilMoisture === "number" && typeof terrestrialRad === "number"){
 console.log(`Soil Cooling Effect: -${soilCooling.toFixed(2)}°C`);
 
  // beberapa kondisi cuaca → dingin
-  if(weatherMain.includes("drizzle")) feel -= 0.8;
-  if(weatherMain.includes("rain")) feel -= 1.5;
-  if(weatherMain.includes("thunderstorm")) feel -= 2;
-  if(weatherMain.includes("mist") || weatherMain.includes("fog")) feel -= 1.2;
+// 1. Tentukan Multiplier berdasarkan suhu (Semakin dingin, semakin pedas efeknya)
+// Di suhu 0°C, multiplier bisa mencapai 2.25x
+let weatherMultiplier = 1 + (Math.max(0, 25 - temp) * 0.05);
+
+let weather_cond = 0;
+
+// 2. Cek Kondisi Spesifik
+if (weatherMain.includes("sleet") || (weatherMain.includes("rain") && weatherMain.includes("snow"))) {
+    // SLEET: Hujan campur salju adalah yang terdingin secara sensasi
+    weather_cond = -4.5 * weatherMultiplier; 
+} 
+else if (weatherMain.includes("freezing rain")) {
+    // FREEZING RAIN: Hujan yang membeku saat kena permukaan
+    weather_cond = -5.0 * weatherMultiplier;
+}
+else if (weatherMain.includes("thunderstorm")) {
+    let stormBase = 2.5;
+    if (cape > 2000) stormBase += 1.5;
+    weather_cond = -stormBase * weatherMultiplier;
+} 
+else if (weatherMain.includes("rain")) {
+    let rainBase = 1.5;
+    if (gust > 20) rainBase += 1.0; 
+    weather_cond = -rainBase * weatherMultiplier;
+} 
+else if (weatherMain.includes("snow")) {
+    weather_cond = -3.0 * weatherMultiplier; // Salju kering biasanya tidak sedingin salju basah
+}
+else if (weatherMain.includes("drizzle")) {
+    weather_cond = -0.8 * weatherMultiplier;
+}
+else if (weatherMain.includes("mist") || weatherMain.includes("fog")) {
+    weather_cond = -1.2 * weatherMultiplier;
+}
+
+// 3. Eksekusi ke Variabel Feel
+feel += weather_cond;
+
+console.log(`Main Weather Realfeel: ${weather_cond.toFixed(2)}°C (${weatherMain})`);
+
+}
 
 /* ========================= */
     /* ===== DEBUG CONSOLE ====== */
     /* ========================= */
     console.log(`1. Morning Memory: ${morningCoolMemory.toFixed(2)}°C`);
-    console.log(`3. Humidity Effect: ${humidityEffect.toFixed(2)}°C`);
-
-}
 
 /* ========================= */
     /* ===== DEBUG CONSOLE ====== */
@@ -1345,12 +1463,15 @@ console.log(`Soil Cooling Effect: -${soilCooling.toFixed(2)}°C`);
     console.log(`--- WEATHER DEBUG [${isDay ? 'SIANG' : 'MALAM'}] ---`);
     console.log(`Suhu Dasar: ${temp}°C`);
 
-    console.log(`TOTAL REALFEEL: ${Math.round(feel)}°C`);
-    console.log(`-----------------------------------`);
+console.log(`--- 📊 RESULT ---`);
+console.log(`👉 ACTUAL FEEL      : ${feel.toFixed(2)}°C`);
+console.log(`👉 ROUNDED          : ${Math.round(feel)}°C`);
+console.log(`-------------------------------------------`);
 
 /* ========================= */
 
-return Math.round(feel);
+return parseFloat(feel.toFixed(1));
+
 }
 
 
@@ -2065,83 +2186,105 @@ return "🌡️";
 //Perhitungan Peluang Hujan
 function calculateNonLinearRain(
     hum,
-    pressureTrend,
+    temp,
+    cape,
+    pressureTrend,    // String: "Rising Pressure 🌤️", dll
     cloud,
     weather,
     sunrise,
     sunset,
-    precipitation, // Data baru: mm hujan
-    pop            // Data baru: Probability of Precipitation (%)
+    precipitation,    // mm hujan aktual
+    pop               // Probabilitas dasar dari API (%)
 ){
-    let score = 0;
+let score = 0;
     const now = Date.now() / 1000;
     const isNight = (now < sunrise || now > sunset);
+    const cond = weather.toLowerCase();
 
     /* ======================================= */
-    /* 0️⃣ HARD OVERRIDE (REAL-TIME DETECTION)   */
+    /* 1️⃣ INTERNAL DEW POINT CALCULATION       */
     /* ======================================= */
+    const a = 17.27;
+    const b = 237.7;
+    const alpha = ((a * temp) / (b + temp)) + Math.log(Math.max(1, hum) / 100);
+    const dewPoint = (b * alpha) / (a - alpha);
     
-    // Jika API mendeteksi hujan aktual > 0.1mm atau status "Rain"
-    const cond = weather.toLowerCase();
-    if(precipitation > 0 || cond.includes("rain") || cond.includes("thunderstorm")){
+    // Spread: Jarak suhu ke titik embun
+    const spread = Math.abs(temp - dewPoint);
+
+    /* ======================================= */
+    /* 2️⃣ HARD OVERRIDE (DETEKSI REAL-TIME)    */
+    /* ======================================= */
+    if (precipitation > 0 || cond.includes("rain") || cond.includes("thunderstorm") || cond.includes("drizzle")) {
         return 100;
     }
 
     /* ======================================= */
-    /* 1️⃣ PRECIPITATION PROBABILITY (Anchor)   */
+    /* 3️⃣ BASE PROBABILITY (ANCHOR)            */
     /* ======================================= */
-    
-    // Kita gunakan data probabilitas dari API sebagai "Nilai Dasar"
-    // Tapi kita beri bobot agar logika fisik Bapak tetap bermain
-    let popBase = (pop || 0) * 0.6; 
+    let popBase = (pop || 0) * 0.5;
     score += popBase;
 
     /* ======================================= */
-    /* 2️⃣ HUMIDITY (Cubic)                      */
+    /* 4️⃣ SPREAD & CLOUD COUPLING (ANTI-FOG)   */
     /* ======================================= */
-    let humFactor = Math.pow(hum / 100, 3) * 40; // Disesuaikan sedikit bobotnya
-    score += humFactor;
+    if (spread < 2) {
+        // Jenuh di bawah + Awan tebal di atas = Hujan
+        if (cloud > 75) {
+            score += 25; 
+        } else {
+            // Jenuh di bawah + Langit bersih = Kabut/Embun (Bukan Hujan)
+            score -= 15; 
+        }
+    } else if (spread < 5) {
+        score += 10;
+    }
 
     /* ======================================= */
-    /* 3️⃣ PRESSURE TREND (Dynamic)             */
+    /* 5️⃣ INSTABILITY (CAPE - BAHAN BAKAR)     */
+    /* ======================================= */
+    if (cape > 800) {
+        score += (Math.sqrt(cape) / 10); 
+    }
+
+    /* ======================================= */
+    /* 6️⃣ HUMIDITY & CLOUD FACTOR (NON-LINEAR) */
+    /* ======================================= */
+    let humFactor = Math.pow(hum / 100, 3) * 35;
+    let cloudFactor = Math.pow(cloud / 100, 2) * 20;
+    score += (humFactor + cloudFactor);
+
+    /* ======================================= */
+    /* 7️⃣ PRESSURE TREND LOGIC                 */
     /* ======================================= */
     switch(pressureTrend){
         case "Rapid Cyclonic Drop 🌪️": score += 35; break;
         case "Convective Pressure Drop ⛈️": score += 25; break;
-        case "Diurnal Pressure Drop 🌅": score += 5; break;
-        case "Rising Pressure 🌤️": score -= 25; break;
-        default: score += 0;
+        case "Rising Pressure 🌤️": score -= 35; break; // "Rem" otomatis saat cuaca membaik
     }
 
     /* ======================================= */
-    /* 4️⃣ CLOUD COVER (Quadratic)              */
+    /* 8️⃣ NIGHT & SENSITIVITY FILTER           */
     /* ======================================= */
-    let cloudFactor = Math.pow(cloud / 100, 2) * 20;
-    score += cloudFactor;
-
-    /* ======================================= */
-    /* 🌙 NIGHT DEW FILTER                     */
-    /* ======================================= */
-    if(isNight){
+    if (isNight) {
         let cloudClearness = 1 - (cloud / 100);
-        let cloudReduction = Math.pow(cloudClearness, 1.5) * 30;
-        score -= cloudReduction;
-
-        if(pressureTrend === "Rising Pressure 🌤️"){
-            score -= 15;
-        }
+        score -= (Math.pow(cloudClearness, 1.5) * 20);
     }
 
+    // Filter Virga (Hujan menguap sebelum sampai tanah)
+    if (hum < 50) score -= 15;
+
     /* ======================================= */
-    /* FINAL NORMALIZATION                     */
+    /* 9️⃣ FINAL NORMALIZATION                  */
     /* ======================================= */
-    
-    // Jika POP dari API sudah tinggi (misal > 70%), 
-    // pastikan skor akhir tidak terlalu rendah
-    if(pop >= 70) score = Math.max(score, pop - 5);
+    if (pop >= 80) score = Math.max(score, pop - 10);
 
     let final = Math.min(Math.round(score), 99);
     final = Math.max(final, 3);
+
+    console.log(`--- RAIN LOGIC ---`);
+    console.log(`Temp: ${temp}°C, DewPoint: ${dewPoint.toFixed(1)}°C, Spread: ${spread.toFixed(1)}°C`);
+    console.log(`Trend: ${pressureTrend}, Final: ${final}%`);
 
     return final;
 }
