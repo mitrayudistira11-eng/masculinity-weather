@@ -1339,15 +1339,19 @@ if (!isDay) {
     console.log(`🌙 Night Cooling Active: ${hoursAfterSunset.toFixed(1)}h after sunset`);
 } 
 else {
-    // SIANG HARI: Kembali ke sensor radiasi jika ada
+    // MODE SIANG: (Panggangan Aspal)
+    // Berdasarkan data Open-Meteo 1300+ W/m2
     if (terrestrialRad > 350) {
-        radCooling = -((terrestrialRad - 350) / 200);
+        let heatPower = (terrestrialRad - 350) / 280; // Pembagi 280 agar +5C tidak terlalu sering tembus
+        
+        // Menghasilkan angka NEGATIF (misal: -3.5)
+        radCooling = -Math.min(4.5, heatPower); 
     }
 }
 
-// Batasi penalti maksimal 2.0 derajat
-radCooling = Math.min(2.0, radCooling);
-
+// Eksekusi akhir
+// Malam: feel -= 1.2  => Mendinginkan
+// Siang: feel -= -3.5 => Memanaskan
 feel -= radCooling;
 /* ======================================= 
    📊 DIAGNOSTIC RADIATIONAL COOLING 
