@@ -729,8 +729,8 @@ const currentHour = new Date().getHours();
 
 // A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik Bapak Tadi)
 // Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
-if (delta3h > 1.5 && rawCloud > 99 && curahHujan > 0 && curahHujan <= 1 ) {
-    weatherDesc = "Gerimis Tekanan Tinggi ☁️💧";
+if (curahHujan > 0 && curahHujan <= 1 ) {
+    weatherDesc = "Gerimis ☁️💧";
     weatherIcon = "🌧️";
 } else
 
@@ -1310,7 +1310,7 @@ else if (icon === "🌧️" || desc.includes("hujan") || desc.includes("rain")) 
     weather_cond = -rainBase * weatherMultiplier;
 } 
 else if (desc.includes("gerimis") || desc.includes("drizzle")) {
-    // Masuk ke sini jika "Gerimis Tekanan Tinggi ☁️💧"
+    // Masuk ke sini jika "Gerimis ☁️💧"
     weather_cond = -1.0 * weatherMultiplier; // Gerimis tekanan tinggi biasanya lebih dingin/adem
 }
 else if (desc.includes("mendung syahdu") || desc.includes("uv shield")) {
