@@ -1341,7 +1341,7 @@ if (!isDay) {
 else {
     // SIANG HARI: Kembali ke sensor radiasi jika ada
     if (terrestrialRad > 350) {
-        radCooling = (terrestrialRad - 350) / 200;
+        radCooling = -((terrestrialRad - 350) / 200);
     }
 }
 
