@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weather GPS Auto</title>
+<title>Masculinity Weather Based GPS</title>
 
 <style>
 /* ================= BODY ================= */
@@ -544,7 +543,7 @@ if (isRaining) {
     finalHumidity = Math.max(humidityOWM, humidityOM);
     sourceInfo = " (Rain Mode - High Precision)";
 } else {
-    // TIDAK HUJAN: Tetap pakai OWM (Default Bapak)
+    // TIDAK HUJAN: Tetap pakai OWM (Default )
     finalHumidity = humidityOWM;
     sourceInfo = " (Standard Mode)";
 }
@@ -756,13 +755,16 @@ const curahHujan  = meteoData.precipitation;
 const rawHum   = data.main.humidity;
 const rawCloud = data.clouds.all;    // Dari OWM
 const rawPress = pressNow - (meteoData_record.pressure_msl[lastIndex - 1]); // 1h Change
+const tekanan = data.main.pressure;
 
 let weatherDesc = data.weather[0].description;
 let weatherIcon = icon; // Asumsi variabel icon sudah didefinisikan sebelumnya
 const currentHour = new Date().getHours();
+const dewPointSpread = data.main.temp - dewPoint;
+
 // --- START LOGIC OVERRIDE ---
 
-// A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik Bapak Tadi)
+// A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik  Tadi)
 // Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
 if (curahHujan > 0 && curahHujan <= 1 ) {
     weatherDesc = "Gerimis ☁️💧";
@@ -785,7 +787,7 @@ if (rawPress < -1.0 && !weatherDesc.includes("rain")) {
 if (rawHum < 50 && rawCloud > 85) {
     weatherDesc = "Mendung (Udara Kering) ☁️";
     weatherIcon = "☁️";
-} else if (rawHum > 92 && jenis_awan === "Thin Cloud Layer 🌤️" && curahHujan <= 0) {
+} else if (rawHum > 92 && jenis_awan === "Thin Cloud Layer 🌤️" && tekanan >= 1010 && curahHujan <= 0 && dewPointSpread <= 1.5) {
     weatherDesc = "Sangat Lembap / Potensi Embun 🌫️";
     weatherIcon = "🌫️";
 } else if (rawHum > 92 && !weatherDesc.includes("rain") && !weatherDesc.includes("Gerimis")) {
@@ -894,17 +896,25 @@ document.getElementById("extra").innerHTML=`
 document.getElementById("recommendation").innerHTML =
 recommendation(
     feel,
-    data.weather[0].main.toLowerCase(),
+    weatherIcon,
     data.wind.speed,
     outdoorScore	
 );
 
 /* ===== RIDING WARNING ===== */
 
-let warning="Kondisi aman untuk riding motor custom.";
+let warning = "✅ Kondisi aman untuk riding motor custom.";
 
-if(data.weather[0].main.toLowerCase().includes("rain")){
-warning="⚠️ Jalanan licin! Hindari rebah ekstrem & akselerasi mendadak.";
+// 1. Veto Berdasarkan Ikon (Kondisi Cuaca Utama)
+if (weatherIcon === "⛈️") {
+    warning = "⛔ Badai petir! Sangat berbahaya, jangan riding!";
+} 
+else if (weatherIcon === "🌧️") {
+    warning = "⚠️ Jalanan licin! Hindari akselerasi mendadak & rebah ekstrem.";
+}
+else if (weatherIcon === "🌫️") {
+    // Menggunakan data visibilitas olahan kita
+    warning = `⚠️ Embun/Kabut! Jarak pandang terbatas. Gunakan lampu utama!`;
 }
 
 if(visibility<5){
@@ -915,9 +925,6 @@ if(wind>10){
 warning+=" ⚠️ Waspadai crosswind saat riding.";
 }
 
-if(data.weather[0].main.toLowerCase().includes("thunderstorm")){
-warning="⛔ Badai petir! Tidak disarankan riding.";
-}
 
 if(outdoorScore < 4){
 warning="⛔ Tidak disarankan riding motor custom!!!";
@@ -1296,11 +1303,11 @@ let weatherMultiplier = 1 + (Math.max(0, 25 - temp) * 0.05);
 
 let weather_cond = 0;
 
-// 2. Cek Kondisi Spesifik (Sesuai Logic Veto Bapak)
+// 2. Cek Kondisi Spesifik (Sesuai Logic Veto )
 // Kita menggunakan weatherDesc atau weatherIcon sebagai penentu
 
 const desc = weatherMain.toLowerCase();
-const icon = weatherIcon; // Mengambil variabel ikon dari Veto Bapak
+const icon = weatherIcon; // Mengambil variabel ikon dari Veto 
 
 if (icon === "⛈️" || desc.includes("badai") || desc.includes("thunderstorm")) {
     let stormBase = 2.5;
@@ -1530,7 +1537,7 @@ return parseFloat(feel.toFixed(1));
 }
 
 
-function recommendation(feelLike, weather, wind, outdoor){
+function recommendation(feelLike, weatherIcon, wind, outdoor){
 
 let outfit="";
 let activity="";
@@ -1594,32 +1601,40 @@ warning += " ⛔ Tunda Semua Kegiatan Outdoor!!! Disarankan Aktivitas Produktif 
 
 }
 
-/* ============================= */
-/* ===== MODIFIER CUACA ======== */
-/* ============================= */
+/* ======================================= 
+   🚨 THE HAKIM MODIFIER (ICON-BASED) V2.5
+   ======================================= */
 
-if(weather.includes("rain")){
-outfit += " + Jaket waterproof / raincoat set + tas anti air";
-activity = "Built Up Custom indoor, Gym, atau latihan taktik indoor.";
-warning = "⚠️ Jalanan licin! Hindari akselerasi mendadak dan rebah ekstrem saat riding motor custom.";
-}
+// Gunakan variabel weatherIcon yang sudah di-veto oleh logic sebelumnya
+const currentIcon = weatherIcon; 
 
-if(weather.includes("drizzle")){
-warning += " ⚠️ Aspal lembap. Jaga jarak pengereman dan hindari ban botak.";
-}
-
-if(weather.includes("thunderstorm")){
-activity = "Tunda semua aktivitas outdoor. Fokus indoor.";
-warning = "⛔ Badai petir! Sangat tidak disarankan mengendarai motor custom.";
-}
-
-if(weather.includes("mist") || weather.includes("fog")){
-activity = "Batasi kegiatan outdoor karena jarak pandang berkurang!";
-warning = "⚠️ Cuaca berkabut! Disarankan untuk mengendarai motor custom secara berhati-hati karena jarak pandang berkurang!";
-}
-
-if(weather.includes("cloud") && feelLike >= 25 && feelLike <= 30){
-activity += " Cuaca mendukung aktivitas outdoor tanpa panas berlebih.";
+if (currentIcon === "⛈️") {
+    // THUNDERSTORM / BADAI
+    activity = "Tunda semua aktivitas outdoor. Fokus indoor.";
+    warning = "⛔ Badai petir! Sangat tidak disarankan mengendarai motor custom.";
+    outfit += " + Raincoat Heavy Duty + Cover Shoes";
+} 
+else if (currentIcon === "🌧️") {
+    // HUJAN (Termasuk Nimbostratus & Satellite Detected)
+    outfit += " + Jaket waterproof / raincoat set + tas anti air";
+    activity = "Built Up Custom indoor, Gym, atau latihan taktik indoor.";
+    warning = "⚠️ Jalanan licin! Hindari akselerasi mendadak dan rebah ekstrem saat riding motor custom.";
+} 
+else if (currentIcon === "🌫️") {
+    // EMBUN / KABUT (Logic Spread <= 1.5 )
+    activity = "Batasi kegiatan outdoor karena jarak pandang berkurang!";
+    warning = "⚠️ Cuaca berkabut! Nyalakan lampu utama motor custom , jaga jarak aman!";
+    outfit += " + Jaket Windbreaker / Leather Jacket + Buff";
+} 
+else if (currentIcon === "☁️") {
+    // MENDUNG / CLOUDY
+    if (feelLike >= 25 && feelLike <= 30) {
+        activity = "Cuaca syahdu! Sangat mendukung aktivitas outdoor tanpa panas berlebih.";
+        outfit = "Kaos nyaman + Jaket ringan";
+    } else {
+        activity = "Mendung pekat, pantau terus radar sebelum riding.";
+    }
+    warning = "⚠️ Aspal mungkin lembap di beberapa titik.";
 }
 
 if(wind > 10){
