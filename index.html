@@ -160,7 +160,7 @@ to{transform:translate(140px,110vh) rotate(20deg)}
 position:absolute;
 inset:0;
 opacity:0;
-filter:blur(45px);
+filter:blur(90px);
 background:
 radial-gradient(circle at 30% 40%,rgba(255,255,255,.25),transparent 60%),
 radial-gradient(circle at 70% 60%,rgba(255,255,255,.2),transparent 60%);
@@ -350,14 +350,16 @@ function setDynamicBackground(currentIcon, sunrise, sunset, cloudPercent){
 
     // Jika Kabut (Icon 🌫️)
     if(currentIcon === "🌫️"){
-        fog.style.opacity = 0.45;
-        clouds.style.opacity = 0.6;
+	sunMoon.style.display = "none";
+        fog.style.opacity = 1;
+        clouds.style.opacity = 0;
+	stars.style.display = "none";
     }
 
     // Jika Mendung Pekat (Icon ☁️)
     if(currentIcon === "☁️"){
         sunMoon.style.display = "none";
-        clouds.style.opacity = 0.8;
+        clouds.style.opacity = 1;
     }
 }
 
@@ -703,6 +705,37 @@ gustStatusLabel.style.color = barColor;
 gustFill.style.width = barWidth;
 gustFill.style.background = barColor;
 
+/* ===== EXTRA DATA ===== */
+
+const wind=data.wind.speed;
+const angin=Math.round(data.wind.speed*3.6);
+const humidity = // data.main.humidity;
+finalHumidity;
+/* ===== DEW POINT ===== */
+const a = 17.27;
+const b = 237.7;
+
+const alpha = ((a * data.main.temp) / (b + data.main.temp)) + Math.log(humidity/100);
+const dewPoint = (b * alpha) / (a - alpha);
+let dewStatus = "Nyaman";
+
+if(dewPoint >= 27) dewStatus = "Sangat Gerah 🥵";
+else if(dewPoint >= 24) dewStatus = "Gerah";
+else if(dewPoint >= 20) dewStatus = "Lembap";
+else if(dewPoint >= 16) dewStatus = "Sejuk";
+else dewStatus = "Kering ❄️";
+const visibility = (data.visibility || 10000) / 1000;
+const pressure=data.main.pressure;
+const cloud = data.clouds.all;
+const sunrise=formatTime(data.sys.sunrise);
+const sunset=formatTime(data.sys.sunset);
+const gust = data.wind.gust;
+
+const cloudType = detectCloudType({
+  openWeather: data,
+  uv: uvData.value,
+  openMeteo: meteoData
+});
 
 /* ======================================= 
    🚨 THE HAKIM LOGIC (ANTI-NGAWUR) V2.0
@@ -713,6 +746,7 @@ const lastIndex = meteoData_record.pressure_msl.length - 1;
 const pressNow  = meteoData_record.pressure_msl[lastIndex];
 const press3h   = meteoData_record.pressure_msl[lastIndex - 3] || pressNow;
 const delta3h   = pressNow - press3h; // Trend 3 jam (Penting untuk deteksi pemerasan awan)
+const jenis_awan = cloudType
 
 const uvNow       = uvData.value;
 const directRad   = meteoData.direct_radiation;
@@ -751,6 +785,9 @@ if (rawPress < -1.0 && !weatherDesc.includes("rain")) {
 if (rawHum < 50 && rawCloud > 85) {
     weatherDesc = "Mendung (Udara Kering) ☁️";
     weatherIcon = "☁️";
+} else if (rawHum > 92 && jenis_awan === "Thin Cloud Layer 🌤️" && curahHujan <= 0) {
+    weatherDesc = "Sangat Lembap / Potensi Embun 🌫️";
+    weatherIcon = "🌫️";
 } else if (rawHum > 92 && !weatherDesc.includes("rain") && !weatherDesc.includes("Gerimis")) {
     weatherDesc = "Sangat Lembap / Potensi Hujan 🌧";
     weatherIcon = "☁️";
@@ -808,37 +845,6 @@ setDynamicBackground(
     data.clouds.all
 );
 
-/* ======================================= */
-
-document.getElementById("desc").innerText = 
-    `RealFeel ${feel}°C | ${weatherIcon} ${weatherDesc}`;
-
-/* ===== EXTRA DATA ===== */
-
-const wind=data.wind.speed;
-const angin=Math.round(data.wind.speed*3.6);
-const humidity = // data.main.humidity;
-finalHumidity;
-/* ===== DEW POINT ===== */
-const a = 17.27;
-const b = 237.7;
-
-const alpha = ((a * data.main.temp) / (b + data.main.temp)) + Math.log(humidity/100);
-const dewPoint = (b * alpha) / (a - alpha);
-let dewStatus = "Nyaman";
-
-if(dewPoint >= 27) dewStatus = "Sangat Gerah 🥵";
-else if(dewPoint >= 24) dewStatus = "Gerah";
-else if(dewPoint >= 20) dewStatus = "Lembap";
-else if(dewPoint >= 16) dewStatus = "Sejuk";
-else dewStatus = "Kering ❄️";
-const visibility = (data.visibility || 10000) / 1000;
-const pressure=data.main.pressure;
-const cloud = data.clouds.all;
-const sunrise=formatTime(data.sys.sunrise);
-const sunset=formatTime(data.sys.sunset);
-const gust = data.wind.gust;
-
 // --- CARA PANGGILNYA ---
 const outdoorScore = calculateOutdoorScore(
     feel,
@@ -848,12 +854,10 @@ const outdoorScore = calculateOutdoorScore(
     data.visibility / 1000 // Konversi ke KM jika OWM dalam meter
 );
 
-const cloudType = detectCloudType({
-  openWeather: data,
-  uv: uvData.value,
-  realFeel: feel,
-  openMeteo: meteoData
-});
+/* ======================================= */
+
+document.getElementById("desc").innerText = 
+    `RealFeel ${feel}°C | ${weatherIcon} ${weatherDesc}`;
 
 const color =
 outdoorScore >= 8 ? "#22c55e" :
@@ -1890,7 +1894,7 @@ else category="Extreme ☀️";
 return { value: uv, category };
 }
 
-function detectCloudType({ openWeather, uv, realFeel, openMeteo }){
+function detectCloudType({ openWeather, uv, openMeteo }){
 
   /* =========================
      BASIC DATA
