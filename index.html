@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Masculinity Weather Based GPS</title>
+<title>Weather GPS Auto</title>
 
 <style>
 /* ================= BODY ================= */
@@ -756,12 +757,13 @@ const rawHum   = data.main.humidity;
 const rawCloud = data.clouds.all;    // Dari OWM
 const rawPress = pressNow - (meteoData_record.pressure_msl[lastIndex - 1]); // 1h Change
 const tekanan = data.main.pressure;
+const angin_real = data.wind.speed * 3.6;
 
 let weatherDesc = data.weather[0].description;
 let weatherIcon = icon; // Asumsi variabel icon sudah didefinisikan sebelumnya
 const currentHour = new Date().getHours();
 const dewPointSpread = data.main.temp - dewPoint;
-
+const pemicuEmbun = (angin_real <= 2) || (jenis_awan === "High Cloud Night 🌙☁️") || (jenis_awan === "Thin Cloud Layer 🌤️");
 // --- START LOGIC OVERRIDE ---
 
 // A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik  Tadi)
@@ -787,10 +789,10 @@ if (rawPress < -1.0 && !weatherDesc.includes("rain")) {
 if (rawHum < 50 && rawCloud > 85) {
     weatherDesc = "Mendung (Udara Kering) ☁️";
     weatherIcon = "☁️";
-} else if (rawHum > 92 && jenis_awan === "Thin Cloud Layer 🌤️" && tekanan >= 1010 && curahHujan <= 0 && dewPointSpread <= 1.5) {
+} else if (pemicuEmbun && rawHum > 94 && tekanan >= 1009 && curahHujan <= 0 && dewPointSpread <= 1.5) {
     weatherDesc = "Sangat Lembap / Potensi Embun 🌫️";
     weatherIcon = "🌫️";
-} else if (rawHum > 92 && !weatherDesc.includes("rain") && !weatherDesc.includes("Gerimis")) {
+} else if (rawHum > 89 && !weatherDesc.includes("rain") && !weatherDesc.includes("drizzle")) {
     weatherDesc = "Sangat Lembap / Potensi Hujan 🌧";
     weatherIcon = "☁️";
 } else
@@ -1272,6 +1274,100 @@ feel += surfaceMemory;
 
     console.log(`Surface Memory: ${surfaceMemory.toFixed(2)}°C`);
 
+let soilCooling = 0;
+
+if (typeof soilMoisture === "number") {
+    // 1. Ambil fraksi kelembapan tanah (0 - 1)
+    let soilFraction = Math.max(0, Math.min(1, soilMoisture));
+
+    // 2. HUMIDITY LIMITER (Koreksi)
+    // Di kelembapan 98% (seperti sekarang), evaporasi tanah terhenti.
+    // Tapi tanah yang basah tetap dingin secara konduksi. 
+    // Kita buat limiter-nya tidak sampai nol mentok.
+    let humidityLimiter = 1 - (humidity / 100);
+    humidityLimiter = Math.max(0.2, humidityLimiter); // Minimal 0.2 agar tetap ada efek dingin tanah basah
+
+    // 3. WIND BOOST
+    let windSafe = Math.max(0, wind || 0);
+    let windBoost = Math.sqrt(windSafe) * 0.15;
+
+    // 4. RADIATION & SKY REVISION
+    // Jika malam (Rad = 0), kita gunakan konstanta pendinginan malam hari (Radiational Cooling)
+    // Jika TerrestrialRad > 0, berarti siang/sore sedang terjadi pelepasan panas.
+    let coolingPower;
+    if (terrestrialRad > 0) {
+        coolingPower = (terrestrialRad > 350 ? 1.5 : 1.0) * (1 - (cloudPercent / 100));
+    } else {
+        // MALAM HARI: Tanah mendingin lebih lambat jika mendung, 
+        // tapi kelembapan tanah tetap bikin "nyes" di kulit.
+        coolingPower = 0.8 * (1 - (0.5 * (cloudPercent / 100))); // Tetap beri power 0.4 meski cloud 100%
+    }
+
+    // 5. EKSEKUSI FINAL
+    soilCooling = 
+        soilFraction * humidityLimiter * coolingPower * (0.8 + windBoost) * 3.0; // Faktor pengali kekuatan (sesuaikan dengan "rasa" di kulit Bapak)
+
+    // Limit agar tidak terlalu ekstrem
+    soilCooling = Math.min(3.5, soilCooling);
+
+    feel -= soilCooling;
+}
+
+console.log(`❄️ Soil Cooling: -${soilCooling.toFixed(2)}`);
+
+/* =========================================
+   🌙 NIGHT RADIATIONAL COOLING (SOLAR BASED)
+   ========================================= */
+
+let radCooling = 0;
+
+if (!isDay) {
+    // MALAM HARI: Menggunakan solar time (setelah sunset)
+    // Semakin lama setelah sunset, bumi semakin dingin.
+    // Kita berikan puncak pendinginan sekitar 4-6 jam setelah sunset.
+    let timeFactor = Math.min(1, Math.max(0, hoursAfterSunset / 4)); 
+    
+    // Faktor Langit: Semakin sedikit awan, semakin cepat panas lepas.
+    let skyExposure = 1 - (cloudPercent / 100); 
+    
+    // Faktor Kelembapan: Udara kering lebih cepat melepas panas daripada udara jenuh.
+    let humidityFactor = 1 - (humidity / 100); 
+
+    // Rumus: Base 1.8 * efek waktu * efek langit * faktor kelembapan
+    radCooling = 1.8 * timeFactor * skyExposure * (0.5 + humidityFactor);
+    
+    console.log(`🌙 Night Cooling Active: ${hoursAfterSunset.toFixed(1)}h after sunset`);
+} 
+else {
+    // SIANG HARI: Kembali ke sensor radiasi jika ada
+    if (terrestrialRad > 350) {
+        radCooling = (terrestrialRad - 350) / 200;
+    }
+}
+
+// Batasi penalti maksimal 2.0 derajat
+radCooling = Math.min(2.0, radCooling);
+
+feel -= radCooling;
+/* ======================================= 
+   📊 DIAGNOSTIC RADIATIONAL COOLING 
+   ======================================= */
+
+console.log("---------- RADIATIONAL COOLING ----------");
+console.log(`☀️ Is Day: ${isDay}`);
+
+if (!isDay) {
+    console.log(`🌙 Night Mode: Active`);
+    console.log(`⏳ Hours After Sunset: ${hoursAfterSunset.toFixed(2)}h`);
+    console.log(`🌌 Sky Exposure: ${(1 - (cloudPercent / 100)).toFixed(2)} (Awan: ${cloudPercent}%)`);
+} else {
+    console.log(`☀️ Day Mode: Active`);
+    console.log(`🔋 Terrestrial Rad: ${terrestrialRad} W/m²`);
+}
+
+console.log(`❄️ Total radCooling Penalti: -${radCooling.toFixed(2)}°C`);
+console.log("-----------------------------------------");
+
 if(isDay){
 
   let radiationStrength = Math.sqrt(shortwave / 1000);
@@ -1338,8 +1434,8 @@ else if (desc.includes("instabilitas") || desc.includes("tekanan drop")) {
     // Kasus Veto C
     weather_cond = -1.1 * weatherMultiplier; // Udara sebelum badai biasanya terasa tidak nyaman/dingin
 }
-else if (desc.includes("mist") || desc.includes("fog")) {
-    weather_cond = -1.2 * weatherMultiplier;
+else if (icon === "🌫️" || desc.includes("mist") || desc.includes("fog")) {
+    weather_cond = -0.6 * weatherMultiplier;
 }
 
 // 3. Eksekusi ke Variabel Feel
@@ -1422,89 +1518,42 @@ else {
   nightFactor = 1; // Stabil penuh
 }
 
-let radCooling = 0;
 
-if(terrestrialRad > 350){
-    radCooling = (terrestrialRad - 350) / 200;
-}
-
-radCooling = Math.min(1.5, radCooling);
-let NightRadCooling = radCooling * nightFactor;
-
-feel -= NightRadCooling
-
-    console.log(`Night Rad Cooling: -${NightRadCooling.toFixed(2)}°C`);
-
-/* ========================= */
-/* ===== SOIL MOISTURE NIGHT COOLING ===== */
-/* ========================= */
-
-let soilCooling = 0;
-
-// Pastikan tidak undefined
-if(typeof soilMoisture === "number" && typeof terrestrialRad === "number"){
-
-    let soilFraction = Math.max(0, Math.min(1, soilMoisture));
-
-    let humidityLimiter = 1 - (humidity / 100);
-    humidityLimiter = Math.max(0, humidityLimiter);
-
-    let windSafe = Math.max(0, wind || 0);
-    let windBoost = Math.sqrt(windSafe) * 0.15;
-
-    let radiationBoost = terrestrialRad > 350 ? 1.2 : 1.0;
-    let cloudFraction = cloudPercent / 100;
-    let skyExposure = 1 - cloudFraction;
-
-    soilCooling =
-        soilFraction *
-        humidityLimiter *
-        radiationBoost *
-	skyExposure *
-        (0.8 + windBoost) *
-        2.5;
-
-    soilCooling = Math.min(3, soilCooling);
-
-    feel -= soilCooling;
-}
-
-console.log(`Soil Cooling Effect: -${soilCooling.toFixed(2)}°C`);
-
- // beberapa kondisi cuaca → dingin
+  // beberapa kondisi cuaca → dingin
 // 1. Tentukan Multiplier berdasarkan suhu (Semakin dingin, semakin pedas efeknya)
 // Di suhu 0°C, multiplier bisa mencapai 2.25x
 let weatherMultiplier = 1 + (Math.max(0, 25 - temp) * 0.05);
 
 let weather_cond = 0;
 
-// 2. Cek Kondisi Spesifik
-if (weatherMain.includes("sleet") || (weatherMain.includes("rain") && weatherMain.includes("snow"))) {
-    // SLEET: Hujan campur salju adalah yang terdingin secara sensasi
-    weather_cond = -4.5 * weatherMultiplier; 
-} 
-else if (weatherMain.includes("freezing rain")) {
-    // FREEZING RAIN: Hujan yang membeku saat kena permukaan
-    weather_cond = -5.0 * weatherMultiplier;
-}
-else if (weatherMain.includes("thunderstorm")) {
+// 2. Cek Kondisi Spesifik (Sesuai Logic Veto )
+// Kita menggunakan weatherDesc atau weatherIcon sebagai penentu
+
+const desc = weatherMain.toLowerCase();
+const icon = weatherIcon; // Mengambil variabel ikon dari Veto 
+
+if (icon === "⛈️" || desc.includes("badai") || desc.includes("thunderstorm")) {
     let stormBase = 2.5;
     if (cape > 2000) stormBase += 1.5;
     weather_cond = -stormBase * weatherMultiplier;
 } 
-else if (weatherMain.includes("rain")) {
-    let rainBase = 1.5;
+else if (icon === "🌧️" || desc.includes("shower") || desc.includes("rain")) {
+    // Termasuk "Hujan (Detected by Satellite)" atau "Sangat Lembap"
+    let rainBase = 1.6; // Sedikit lebih tinggi karena efek kelembapan jenuh
     if (gust > 20) rainBase += 1.0; 
+    if (humidity > 90) rainBase += 0.5; // Penalti tambahan untuk lembap basah
     weather_cond = -rainBase * weatherMultiplier;
 } 
-else if (weatherMain.includes("snow")) {
-    weather_cond = -3.0 * weatherMultiplier; // Salju kering biasanya tidak sedingin salju basah
+else if (desc.includes("gerimis") || desc.includes("drizzle")) {
+    // Masuk ke sini jika "Gerimis ☁️💧"
+    weather_cond = -1.0 * weatherMultiplier; // Gerimis tekanan tinggi biasanya lebih dingin/adem
 }
-else if (weatherMain.includes("drizzle")) {
-    weather_cond = -0.8 * weatherMultiplier;
+else if (desc.includes("instabilitas") || desc.includes("tekanan drop")) {
+    // Kasus Veto C
+    weather_cond = -1.1 * weatherMultiplier; // Udara sebelum badai biasanya terasa tidak nyaman/dingin
 }
-else if (weatherMain.includes("mist") || weatherMain.includes("fog")) {
-    weather_cond = -1.2 * weatherMultiplier;
+else if (icon === "🌫️" || desc.includes("mist") || desc.includes("fog")) {
+    weather_cond = -0.6 * weatherMultiplier;
 }
 
 // 3. Eksekusi ke Variabel Feel
