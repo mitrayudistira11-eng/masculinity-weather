@@ -530,11 +530,40 @@ document.getElementById("temp").innerText=Math.round(data.main.temp)+"°C";
 
 const icon = getWeatherIcon(data.weather[0].main);
 
+let finalCloud;
+const nowUnix = Date.now() / 1000;
+const isNightTime = (nowUnix < data.sys.sunrise || nowUnix > data.sys.sunset);
+
+if (!isNightTime) {
+    /* =========================================
+       MODE SIANG (Hakim: Radiasi Matahari)
+    ========================================= */
+    if (data.clouds.all > 80 && meteoData.shortwave_radiation > 400) {
+        finalCloud = (data.clouds.all + meteoData.cloud_cover) / 2;
+    } else {
+        finalCloud = data.clouds.all;
+    }
+} else {
+    /* =========================================
+       MODE MALAM (Hakim: Low & Mid Cloud)
+    ========================================= */
+    // Di malam hari, kita cek awan yang bikin gelap (Low & Mid)
+    const lowMidCloud = (meteoData.cloud_cover_low || 0) + (meteoData.cloud_cover_mid || 0);
+    
+    // Jika OWM bilang 100% tapi OpenMeteo bilang awan rendah/menengah sepi
+    if (data.clouds.all > 80 && lowMidCloud < 40) {
+        finalCloud = (data.clouds.all + meteoData.cloud_cover) / 2;
+    } else {
+        finalCloud = data.clouds.all;
+    }
+}
+
+const totalCloud = finalCloud;
 
 // Ambil data dasar
 const humidityOWM = data.main.humidity; // Data dari OpenWeatherMap
 const humidityOM  = meteoData.relative_humidity_2m; // Data dari Open-Meteo
-const isRaining   = (meteoData.precipitation > 0 || data.weather[0].main.toLowerCase().includes("rain"));
+const isRaining   = (meteoData.precipitation > 0 && data.weather[0].main.toLowerCase().includes("rain"));
 
 let finalHumidity;
 let sourceInfo = "";
@@ -551,7 +580,7 @@ if (isRaining) {
 
 const uvData = calculateUV(
 data.weather[0].main.toLowerCase(),
-data.clouds.all,
+finalCloud,
 (data.visibility ?? 10000) / 1000,
 data.sys.sunrise,
 data.sys.sunset,
@@ -570,11 +599,12 @@ finalHumidity,
     data.main.temp,
     meteoData.cape,    
     pressureTrend, 
-    data.clouds.all, 
+    finalCloud, 
     data.weather[0].main.toLowerCase(),
     data.sys.sunrise,
     data.sys.sunset,
 meteoData.precipitation,
+data.rain?.["1h"] || 0,
 meteoData.precipitation_probability
 );
 
@@ -583,15 +613,12 @@ const rainLabel = document.getElementById("rainChance");
 const rainFill = document.getElementById("rainFill");
 const rainStatusEl = document.getElementById("rainStatus");
 
-const awan = data.clouds.all;
+const awan = finalCloud;
 const humi = // data.main.humidity;
 finalHumidity;
 
 rainLabel.innerText = chance + "%";
 rainFill.style.width = chance + "%";
-
-const nowUnix = Date.now() / 1000;
-const isNightTime = (nowUnix < data.sys.sunrise || nowUnix > data.sys.sunset);
 
 let statusText = "";
 let statusColor = "#94a3b8";
@@ -724,9 +751,9 @@ else if(dewPoint >= 24) dewStatus = "Gerah";
 else if(dewPoint >= 20) dewStatus = "Lembap";
 else if(dewPoint >= 16) dewStatus = "Sejuk";
 else dewStatus = "Kering ❄️";
-const visibility = (data.visibility || 10000) / 1000;
+const visibility = ((data.visibility || 10000) / 1000).toFixed(1);
 const pressure=data.main.pressure;
-const cloud = data.clouds.all;
+const cloud = finalCloud;
 const sunrise=formatTime(data.sys.sunrise);
 const sunset=formatTime(data.sys.sunset);
 const gust = data.wind.gust;
@@ -746,7 +773,7 @@ const lastIndex = meteoData_record.pressure_msl.length - 1;
 const pressNow  = meteoData_record.pressure_msl[lastIndex];
 const press3h   = meteoData_record.pressure_msl[lastIndex - 3] || pressNow;
 const delta3h   = pressNow - press3h; // Trend 3 jam (Penting untuk deteksi pemerasan awan)
-const jenis_awan = cloudType
+const jenis_awan = cloudType;
 
 const uvNow       = uvData.value;
 const directRad   = meteoData.direct_radiation;
@@ -758,13 +785,57 @@ const rawCloud = data.clouds.all;    // Dari OWM
 const rawPress = pressNow - (meteoData_record.pressure_msl[lastIndex - 1]); // 1h Change
 const tekanan = data.main.pressure;
 const angin_real = data.wind.speed * 3.6;
+const hujan_OWM = data.rain?.["1h"] || 0;
 
-let weatherDesc = data.weather[0].description;
+let weatherDesc = data.weather[0].description.toLowerCase();
+let mainweather = data.weather[0].main.toLowerCase();
 let weatherIcon = icon; // Asumsi variabel icon sudah didefinisikan sebelumnya
 const currentHour = new Date().getHours();
 const dewPointSpread = data.main.temp - dewPoint;
 const pemicuEmbun = (angin_real <= 2) || (jenis_awan === "High Cloud Night 🌙☁️") || (jenis_awan === "Thin Cloud Layer 🌤️");
 // --- START LOGIC OVERRIDE ---
+
+// 1. Tentukan Emoji Berdasarkan Kasta (finalCloud)
+/* ======================================= 
+   ⚖️ THE HAKIM LOGIC: MAPPING IKON & DIKSI
+   ======================================= */
+
+let statusDiksi;
+// Variabel weatherIcon  sudah benar, kita isi barengan di sini
+
+if (finalCloud <= 10) {
+    weatherIcon = "☀️";
+    statusDiksi = "Sebagian Besar Cerah";
+} else if (finalCloud <= 30) {
+    weatherIcon = "🌤️";
+    statusDiksi = "Sebagian Cerah";
+} else if (finalCloud <= 60) {
+    weatherIcon = "⛅";
+    statusDiksi = "Sebagian Berawan";
+} else if (finalCloud <= 85) {
+    weatherIcon = "🌥️";
+    statusDiksi = "Sebagian Besar Berawan";
+} else if (finalCloud <= 98) {
+    weatherIcon = "☁️";
+    statusDiksi = "Berawan";
+} else {
+    weatherIcon = "☁️🌚";
+    statusDiksi = "Berawan Gelap";
+}
+
+// 2. Veto Terakhir (Hujan)
+if (data.rain?.["1h"] > 0 && meteoData.precipitation > 0) {
+    // Kalau hujan tapi awan di bawah 85%, berarti hujan panas/rintik
+    if (finalCloud < 85) {
+        weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
+        weatherIcon = "🌦️";
+    } else {
+        weatherDesc = `Hujan ${data.rain["1h"] > 1 ? "Lebat" : "Rintik"}`;
+        weatherIcon = "🌧️";
+    }
+} else {
+    weatherDesc = statusDiksi;
+}
 
 // A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik  Tadi)
 // Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
@@ -780,7 +851,7 @@ if (currentHour >= 11 && currentHour <= 14 && uvNow <= 2 && rawCloud > 94) {
 } else
 
 // C. VETO TEKANAN (Deteksi Badai / Instabilitas)
-if (rawPress < -1.0 && !weatherDesc.includes("rain")) {
+if (rawPress < -1.0 && !mainweather.includes("rain")) {
     weatherDesc = "Instabilitas Terdeteksi (Tekanan Drop) ⛈️";
     weatherIcon = "⛈️";
 } else
@@ -792,16 +863,21 @@ if (rawHum < 50 && rawCloud > 85) {
 } else if (pemicuEmbun && rawHum > 94 && tekanan >= 1009 && curahHujan <= 0 && dewPointSpread <= 1.5) {
     weatherDesc = "Sangat Lembap / Potensi Embun 🌫️";
     weatherIcon = "🌫️";
-} else if (rawHum > 89 && !weatherDesc.includes("rain") && !weatherDesc.includes("drizzle")) {
+} else if (rawHum > 89 && !mainweather.includes("rain") && !mainweather.includes("drizzle")) {
     weatherDesc = "Sangat Lembap / Potensi Hujan 🌧";
     weatherIcon = "☁️";
 } else
 
 // E. VETO AWAN (Koreksi API Global)
-if (rawCloud > 85 && (weatherDesc.includes("clear") || weatherDesc.includes("sunny"))) {
+if (rawCloud > 85 && (mainweather.includes("clear") || mainweather.includes("sunny"))) {
     weatherDesc = "Mendung Pekat (Cloudy) ☁️";
     weatherIcon = "☁️";
 } else
+
+if (rawHum < 75 && hujan_OWM > 0 && hujan_OWM <= 0.2) {
+    weatherDesc = "Virga Kering";
+    weatherIcon = "☁️";
+}
 
 // F. VETO SATELIT (Real-time Precipitation)
 if (curahHujan > 0.4) {
@@ -829,7 +905,7 @@ weatherDesc,
 weatherIcon,
 data.sys.sunrise,
 data.sys.sunset,
-data.clouds.all,
+finalCloud,
 uvData.value,
 meteoData.shortwave_radiation,
 meteoData.direct_radiation,
@@ -846,7 +922,7 @@ setDynamicBackground(
     weatherIcon, // <--- Gunakan weatherIcon hasil Veto Hakim Logic
     data.sys.sunrise,
     data.sys.sunset,
-    data.clouds.all
+    finalCloud
 );
 
 // --- CARA PANGGILNYA ---
@@ -860,7 +936,9 @@ const outdoorScore = calculateOutdoorScore(
 
 /* ======================================= */
 
-document.getElementById("desc").innerText = 
+
+// 3. Tembakkan ke HTML menggunakan innerHTML (bukan innerText)
+document.getElementById("desc").innerHTML = 
     `RealFeel ${feel}°C | ${weatherIcon} ${weatherDesc}`;
 
 const color =
@@ -1305,7 +1383,7 @@ if (typeof soilMoisture === "number") {
 
     // 5. EKSEKUSI FINAL
     soilCooling = 
-        soilFraction * humidityLimiter * coolingPower * (0.8 + windBoost) * 3.0; // Faktor pengali kekuatan (sesuaikan dengan "rasa" di kulit Bapak)
+        soilFraction * humidityLimiter * coolingPower * (0.8 + windBoost) * 3.0; // Faktor pengali kekuatan (sesuaikan dengan "rasa" di kulit )
 
     // Limit agar tidak terlalu ekstrem
     soilCooling = Math.min(3.5, soilCooling);
@@ -2092,8 +2170,20 @@ if(
     return "Thin Cloud Layer 🌤️";
   }
 
+/* =========================================================
+   6️⃣ MIXED / PARTLY CLOUDY (Jaring Pengaman Awan Campuran)
+========================================================= */
+// Jika total awan tinggi tapi tidak ada yang dominan ekstrem
+if (totalCloud >= 40) {
+  if (isDay) {
+    return "Partly Cloudy (Mixed Layers) ⛅";
+  } else {
+    return "Partly Cloudy Night ☁️🌙";
+  }
+}
+
   /* =========================================================
-     6️⃣ CLEAR CONDITIONS
+     7️⃣ CLEAR CONDITIONS
   ========================================================= */
 
   if(totalCloud < 20){
@@ -2310,6 +2400,7 @@ function calculateNonLinearRain(
     sunrise,
     sunset,
     precipitation,    // mm hujan aktual
+    preci2,
     pop               // Probabilitas dasar dari API (%)
 ){
 let score = 0;
@@ -2331,7 +2422,7 @@ let score = 0;
     /* ======================================= */
     /* 2️⃣ HARD OVERRIDE (DETEKSI REAL-TIME)    */
     /* ======================================= */
-    if (precipitation > 0 || cond.includes("rain") || cond.includes("thunderstorm") || cond.includes("drizzle")) {
+    if (precipitation > 0 && preci2 > 0) {
         return 100;
     }
 
