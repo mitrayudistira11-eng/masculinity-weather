@@ -563,8 +563,8 @@ const totalCloud = finalCloud;
 // Ambil data dasar
 const humidityOWM = data.main.humidity; // Data dari OpenWeatherMap
 const humidityOM  = meteoData.relative_humidity_2m; // Data dari Open-Meteo
-const isRaining   = (meteoData.precipitation > 0 && data.weather[0].main.toLowerCase().includes("rain"));
-
+const support = (data.main.humidity = 100) && (data.clouds.all = 100);
+const isRaining   = (meteoData.precipitation > 0 || data.rain?.["1h"] > 1 || support);
 let finalHumidity;
 let sourceInfo = "";
 
@@ -605,7 +605,7 @@ finalHumidity,
     data.sys.sunset,
 meteoData.precipitation,
 data.rain?.["1h"] || 0,
-meteoData.precipitation_probability
+meteoData.precipitation_probability,
 );
 
 // --- UPDATE UI BAR & TEKS STATUS ---
@@ -824,7 +824,7 @@ if (finalCloud <= 10) {
 }
 
 // 2. Veto Terakhir (Hujan)
-if (data.rain?.["1h"] > 0 && meteoData.precipitation > 0) {
+if (data.rain?.["1h"] > 0.5 || support) {
     // Kalau hujan tapi awan di bawah 85%, berarti hujan panas/rintik
     if (finalCloud < 85) {
         weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
@@ -860,7 +860,7 @@ if (rawPress < -1.0 && !mainweather.includes("rain")) {
 if (rawHum < 50 && rawCloud > 85) {
     weatherDesc = "Mendung (Udara Kering) ☁️";
     weatherIcon = "☁️";
-} else if (pemicuEmbun && rawHum > 94 && tekanan >= 1009 && curahHujan <= 0 && dewPointSpread <= 1.5) {
+} else if (pemicuEmbun && rawHum > 94 && tekanan >= 1009 && curahHujan <= 0 && dewPointSpread <= 1.5 && !isRaining) {
     weatherDesc = "Sangat Lembap / Potensi Embun 🌫️";
     weatherIcon = "🌫️";
 } else if (rawHum > 89 && !mainweather.includes("rain") && !mainweather.includes("drizzle")) {
@@ -2401,7 +2401,7 @@ function calculateNonLinearRain(
     sunset,
     precipitation,    // mm hujan aktual
     preci2,
-    pop               // Probabilitas dasar dari API (%)
+    pop           // Probabilitas dasar dari API (%)
 ){
 let score = 0;
     const now = Date.now() / 1000;
@@ -2422,7 +2422,9 @@ let score = 0;
     /* ======================================= */
     /* 2️⃣ HARD OVERRIDE (DETEKSI REAL-TIME)    */
     /* ======================================= */
-    if (precipitation > 0 && preci2 > 0) {
+const support = (hum = 100) && (cloud = 100);
+const isRaining   = (precipitation > 0 || preci2 > 1 || support);
+    if (isRaining) {
         return 100;
     }
 
