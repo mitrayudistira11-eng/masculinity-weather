@@ -866,10 +866,10 @@ if (rawHum < 50 && rawCloud > 85) {
     weatherDesc = "Mendung (Udara Kering) ☁️";
     weatherIcon = "☁️";
 } else if (pemicuEmbun && rawHum > 94 && tekanan >= 1009 && curahHujan <= 0 && dewPointSpread <= 1.5 && !isRaining) {
-    weatherDesc = "Sangat Lembap / Potensi Embun 🌫️";
+    weatherDesc = "Sangat Lembap / Potensi 🌫️";
     weatherIcon = "🌫️";
 } else if (rawHum > 89 && !mainweather.includes("rain") && !mainweather.includes("drizzle")) {
-    weatherDesc = "Sangat Lembap / Potensi Hujan 🌧";
+    weatherDesc = "Sangat Lembap / Potensi 🌧";
     weatherIcon = "☁️";
 } else
 
@@ -1524,7 +1524,7 @@ if (icon === "⛈️" || desc.includes("badai") || desc.includes("thunderstorm")
     if (gust > 20) stormBase += 1.0;  
     weather_cond = -stormBase * weatherMultiplier;
 } 
-else if (icon === "🌧️" || desc.includes("hujan") || desc.includes("rain")) {
+else if (icon === "🌧️" || desc.includes("rain")) {
     // Termasuk "Hujan (Detected by Satellite)" atau "Sangat Lembap"
 	let rainBase = 1.2;
 // Jika ada data presipitasi (mm/jam)
@@ -1658,7 +1658,7 @@ if (icon === "⛈️" || desc.includes("badai") || desc.includes("thunderstorm")
     if (gust > 20) stormBase += 1.0;  
     weather_cond = -stormBase * weatherMultiplier;
 } 
-else if (icon === "🌧️" || desc.includes("hujan") || desc.includes("rain")) {
+else if (icon === "🌧️" || desc.includes("rain")) {
     // Termasuk "Hujan (Detected by Satellite)" atau "Sangat Lembap"
 	let rainBase = 1.2;
 // Jika ada data presipitasi (mm/jam)
