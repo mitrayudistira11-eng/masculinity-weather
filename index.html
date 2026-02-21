@@ -561,10 +561,11 @@ if (!isNightTime) {
 const totalCloud = finalCloud;
 
 // Ambil data dasar
+const hoedjan = data.rain?.["1h"] ?? 0;
 const humidityOWM = data.main.humidity; // Data dari OpenWeatherMap
 const humidityOM  = meteoData.relative_humidity_2m; // Data dari Open-Meteo
 const support = (data.main.humidity = 100) && (data.clouds.all = 100);
-const isRaining   = (meteoData.precipitation > 0 || data.rain?.["1h"] > 1 || support);
+const isRaining   = (meteoData.precipitation > 0 || hoedjan > 1);
 let finalHumidity;
 let sourceInfo = "";
 
@@ -824,13 +825,13 @@ if (finalCloud <= 10) {
 }
 
 // 2. Veto Terakhir (Hujan)
-if (data.rain?.["1h"] > 0.5 || support) {
+if (hoedjan > 0.5 || support) {
     // Kalau hujan tapi awan di bawah 85%, berarti hujan panas/rintik
     if (finalCloud < 85) {
         weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
         weatherIcon = "🌦️";
     } else {
-        weatherDesc = `Hujan ${data.rain["1h"] > 1 ? "Lebat" : "Rintik"}`;
+        weatherDesc = `Hujan ${hoedjan > 1 ? "Lebat" : "Rintik"}`;
         weatherIcon = "🌧️";
     }
 } else {
@@ -839,7 +840,7 @@ if (data.rain?.["1h"] > 0.5 || support) {
 
 // A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik  Tadi)
 // Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
-if (curahHujan > 0 && curahHujan <= 1 && data.rain?.["1h"] > 1.5) {
+if (curahHujan > 0 && curahHujan <= 1 && hoedjan > 1.5) {
     weatherDesc = "Hujan";
     weatherIcon = "🌧️";
 } else
@@ -2470,7 +2471,7 @@ let score = 0;
     /* 2️⃣ HARD OVERRIDE (DETEKSI REAL-TIME)    */
     /* ======================================= */
 const support = (hum = 100) && (cloud = 100);
-const isRaining   = (precipitation > 0 || preci2 > 1 || support);
+const isRaining   = (precipitation > 0 || preci2 > 1);
     if (isRaining) {
         return 100;
     }
