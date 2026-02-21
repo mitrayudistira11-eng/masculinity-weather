@@ -839,9 +839,13 @@ if (data.rain?.["1h"] > 0.5 || support) {
 
 // A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik  Tadi)
 // Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
+if (curahHujan > 0 && curahHujan <= 1 && data.rain?.["1h"] > 1.5) {
+    weatherDesc = "Hujan";
+    weatherIcon = "🌧️";
+} else
 if (curahHujan > 0 && curahHujan <= 1 ) {
     weatherDesc = "Gerimis ☁️💧";
-    weatherIcon = "🌧️";
+    weatherIcon = "🌦️";
 } else
 
 // B. LOGIKA "ATMOSPHERIC SHIELD" (Kasus UV 2 Tengah Hari)
@@ -896,6 +900,8 @@ if (uvNow <= 2 && currentHour > 10 && currentHour < 15) {
 
 const feel = customFeelLike(
 data.main.temp,
+meteoData.temperature_2m,
+data.rain?.["1h"] ?? 0,
 data.main.grnd_level,
 // data.main.humidity,
 finalHumidity,
@@ -1090,7 +1096,7 @@ function calculate_pressure_effect(pressure) {
     
     // Memberikan koreksi halus. Jika 1009 hPa, koreksi sekitar -0.01 s/d -0.05
     // Berguna untuk universalitas (Puncak vs Pantai)
-    return (densityRatio - 1) * 2.5;
+    return (densityRatio - 1) * 7.5;
 }
 
 function getWindEffect(temp, humidity, wind, gust, weatherMain, pressure){
@@ -1129,6 +1135,8 @@ function getWindEffect(temp, humidity, wind, gust, weatherMain, pressure){
 
 function customFeelLike(
     temp,
+    temp2,
+    preci,
     pressure,
     humidity,
     wind,
@@ -1342,8 +1350,8 @@ if(cape > 800){
 feel += instabilityEffect;
 
     console.log(`Instability Effect: ${instabilityEffect.toFixed(2)}°C`);
-
-let surfaceDelta = surfaceTemp - temp;
+let avgtemp = (temp + temp2)/2
+let surfaceDelta = surfaceTemp - avgtemp;
 
 let surfaceMemory = surfaceDelta * 0.2;
 surfaceMemory = Math.max(-3, Math.min(3, surfaceMemory));
@@ -1354,7 +1362,7 @@ feel += surfaceMemory;
 
 let soilCooling = 0;
 
-if (typeof soilMoisture === "number") {
+if (soilMoisture > 0) {
     // 1. Ambil fraksi kelembapan tanah (0 - 1)
     let soilFraction = Math.max(0, Math.min(1, soilMoisture));
 
@@ -1363,7 +1371,7 @@ if (typeof soilMoisture === "number") {
     // Tapi tanah yang basah tetap dingin secara konduksi. 
     // Kita buat limiter-nya tidak sampai nol mentok.
     let humidityLimiter = 1 - (humidity / 100);
-    humidityLimiter = Math.max(0.2, humidityLimiter); // Minimal 0.2 agar tetap ada efek dingin tanah basah
+    humidityLimiter = Math.max(0.3, humidityLimiter); // Minimal 0.3 agar tetap ada efek dingin tanah basah
 
     // 3. WIND BOOST
     let windSafe = Math.max(0, wind || 0);
@@ -1372,14 +1380,22 @@ if (typeof soilMoisture === "number") {
     // 4. RADIATION & SKY REVISION
     // Jika malam (Rad = 0), kita gunakan konstanta pendinginan malam hari (Radiational Cooling)
     // Jika TerrestrialRad > 0, berarti siang/sore sedang terjadi pelepasan panas.
-    let coolingPower;
-    if (terrestrialRad > 0) {
-        coolingPower = (terrestrialRad > 350 ? 1.5 : 1.0) * (1 - (cloudPercent / 100));
+let coolingPower;
+
+if (terrestrialRad > 0) { // MODE SIANG
+    let baseCooling = terrestrialRad > 350 ? 1.5 : 1.0;
+    let cloudFactor = (1 - (cloudPercent / 100));
+
+    if (preci > 0) {
+        // Jika hujan, cloudFactor (0) akan ditambah kekuatan hujan
+        coolingPower = (baseCooling * cloudFactor) + (preci * 0.2);
     } else {
-        // MALAM HARI: Tanah mendingin lebih lambat jika mendung, 
-        // tapi kelembapan tanah tetap bikin "nyes" di kulit.
-        coolingPower = 0.8 * (1 - (0.5 * (cloudPercent / 100))); // Tetap beri power 0.4 meski cloud 100%
+        // Jika tidak hujan, murni mengandalkan celah awan
+        coolingPower = baseCooling * cloudFactor;
     }
+} else { // MODE MALAM
+    coolingPower = 0.8 * (1 - (0.5 * (cloudPercent / 100)));
+}
 
     // 5. EKSEKUSI FINAL
     soilCooling = 
@@ -1389,9 +1405,14 @@ if (typeof soilMoisture === "number") {
     soilCooling = Math.min(3.5, soilCooling);
 
     feel -= soilCooling;
-}
 
+console.log(`❄️ Presipitasi: ${preci.toFixed(2)}`);
+console.log(`❄️ Soil Fraction: ${soilFraction.toFixed(2)}`);
+console.log(`❄️ Humidity Limiter: ${humidityLimiter.toFixed(2)}`);
+console.log(`❄️ Cooling Power: ${coolingPower.toFixed(2)}`);
+console.log(`❄️ Wind Boost: ${windBoost.toFixed(2)}`);
 console.log(`❄️ Soil Cooling: -${soilCooling.toFixed(2)}`);
+}
 
 /* =========================================
    🌙 NIGHT RADIATIONAL COOLING (SOLAR BASED)
@@ -1417,14 +1438,22 @@ if (!isDay) {
     console.log(`🌙 Night Cooling Active: ${hoursAfterSunset.toFixed(1)}h after sunset`);
 } 
 else {
-    // MODE SIANG: (Panggangan Aspal)
-    // Berdasarkan data Open-Meteo 1300+ W/m2
-    if (terrestrialRad > 350) {
-        let heatPower = (terrestrialRad - 350) / 280; // Pembagi 280 agar +5C tidak terlalu sering tembus
-        
-        // Menghasilkan angka NEGATIF (misal: -3.5)
-        radCooling = -Math.min(4.5, heatPower); 
+// MODE SIANG: (Panggangan Aspal)
+if (terrestrialRad > 250) {
+    let heatPower = (terrestrialRad - 250) / 380; 
+
+    // --- TAMBAHAN LOGIKA REDAM HUJAN ---
+    if (preci > 0) {
+        // Diskon panas berdasarkan curah hujan. 
+        // Hujan 10mm bisa mengurangi kekuatan panas sekitar 60%
+let rainDampener = Math.max(0.2, 1 - (preci * 0.06)); 
+heatPower = heatPower * rainDampener;
     }
+    // -----------------------------------
+    
+    // Hasilnya radCooling tidak akan sedalam -2.5 lagi saat hujan
+    radCooling = -Math.min(4.5, heatPower); 
+}
 }
 
 // Eksekusi akhir
@@ -1490,16 +1519,23 @@ const icon = weatherIcon; // Mengambil variabel ikon dari Veto
 if (icon === "⛈️" || desc.includes("badai") || desc.includes("thunderstorm")) {
     let stormBase = 2.5;
     if (cape > 2000) stormBase += 1.5;
+    stormBase += (preci * 0.1);
+    if (gust > 20) stormBase += 1.0;  
     weather_cond = -stormBase * weatherMultiplier;
 } 
 else if (icon === "🌧️" || desc.includes("hujan") || desc.includes("rain")) {
     // Termasuk "Hujan (Detected by Satellite)" atau "Sangat Lembap"
-    let rainBase = 1.8; // Sedikit lebih tinggi karena efek kelembapan jenuh
+	let rainBase = 1.2;
+// Jika ada data presipitasi (mm/jam)
+    if (preci > 0) {
+        // Setiap 1mm hujan, tambah efek dingin 0.1 derajat
+        // Hujan lebat (10mm/jam) akan nambah -1.0 derajat
+        rainBase += (preci * 0.1); 
+    }
     if (gust > 20) rainBase += 1.0; 
-    if (humidity > 90) rainBase += 0.5; // Penalti tambahan untuk lembap basah
     weather_cond = -rainBase * weatherMultiplier;
 } 
-else if (desc.includes("gerimis") || desc.includes("drizzle")) {
+else if (icon === "🌦️" || desc.includes("gerimis") || desc.includes("drizzle")) {
     // Masuk ke sini jika "Gerimis ☁️💧"
     weather_cond = -1.0 * weatherMultiplier; // Gerimis tekanan tinggi biasanya lebih dingin/adem
 }
@@ -1617,18 +1653,29 @@ const icon = weatherIcon; // Mengambil variabel ikon dari Veto
 if (icon === "⛈️" || desc.includes("badai") || desc.includes("thunderstorm")) {
     let stormBase = 2.5;
     if (cape > 2000) stormBase += 1.5;
+    stormBase += (preci * 0.1);
+    if (gust > 20) stormBase += 1.0;  
     weather_cond = -stormBase * weatherMultiplier;
 } 
-else if (icon === "🌧️" || desc.includes("shower") || desc.includes("rain")) {
+else if (icon === "🌧️" || desc.includes("hujan") || desc.includes("rain")) {
     // Termasuk "Hujan (Detected by Satellite)" atau "Sangat Lembap"
-    let rainBase = 1.6; // Sedikit lebih tinggi karena efek kelembapan jenuh
+	let rainBase = 1.2;
+// Jika ada data presipitasi (mm/jam)
+    if (preci > 0) {
+        // Setiap 1mm hujan, tambah efek dingin 0.1 derajat
+        // Hujan lebat (10mm/jam) akan nambah -1.0 derajat
+        rainBase += (preci * 0.1); 
+    }
     if (gust > 20) rainBase += 1.0; 
-    if (humidity > 90) rainBase += 0.5; // Penalti tambahan untuk lembap basah
     weather_cond = -rainBase * weatherMultiplier;
 } 
-else if (desc.includes("gerimis") || desc.includes("drizzle")) {
+else if (icon === "🌦️" || desc.includes("gerimis") || desc.includes("drizzle")) {
     // Masuk ke sini jika "Gerimis ☁️💧"
     weather_cond = -1.0 * weatherMultiplier; // Gerimis tekanan tinggi biasanya lebih dingin/adem
+}
+else if (icon === "☁️" || desc.includes("mendung")) {
+    // Kasus Veto D & E (Mendung Pekat atau Mendung Udara Kering)
+    weather_cond = -0.1 * weatherMultiplier;
 }
 else if (desc.includes("instabilitas") || desc.includes("tekanan drop")) {
     // Kasus Veto C
