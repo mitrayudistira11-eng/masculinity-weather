@@ -781,7 +781,7 @@ const directRad   = meteoData.direct_radiation;
 const capeNow     = meteoData.cape;
 const curahHujan  = meteoData.precipitation;
 
-const rawHum   = data.main.humidity;
+const rawHum   = finalHumidity;
 const rawCloud = data.clouds.all;    // Dari OWM
 const rawPress = pressNow - (meteoData_record.pressure_msl[lastIndex - 1]); // 1h Change
 const tekanan = data.main.pressure;
@@ -825,7 +825,7 @@ if (finalCloud <= 10) {
 }
 
 // 2. Veto Terakhir (Hujan)
-if (hoedjan > 0.5 || support) {
+if (hoedjan > 0.5) {
     // Kalau hujan tapi awan di bawah 85%, berarti hujan panas/rintik
     if (finalCloud < 85) {
         weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
@@ -1386,7 +1386,14 @@ let coolingPower;
 if (terrestrialRad > 0) { // MODE SIANG
     let baseCooling = terrestrialRad > 350 ? 1.5 : 1.0;
     let cloudFactor = (1 - (cloudPercent / 100));
-
+// --- LOGIKA PEREDAM AWAN ---
+    // Jika cloud_cover 100%, peredam jadi 0.3 (hanya 30% panas yang bisa kabur)
+    // Jika cloud_cover 0%, peredam jadi 1.0 (panas kabur maksimal)
+    let cloudDamping = 1 - (cloudPercent / 100 * 0.7); 
+    
+    // Terapkan peredam ke heatPower
+   let heatPower = baseCooling * cloudDamping;
+	coolingPower = heatPower;
     if (preci > 0) {
         // Jika hujan, cloudFactor (0) akan ditambah kekuatan hujan
         coolingPower = (baseCooling * cloudFactor) + (preci * 0.2);
@@ -1440,16 +1447,18 @@ if (!isDay) {
 } 
 else {
 // MODE SIANG: (Panggangan Aspal)
-if (terrestrialRad > 250) {
-    let heatPower = (terrestrialRad - 250) / 380; 
+if (terrestrialRad > 380) {
+let heatPower = Math.sqrt((terrestrialRad - 380) / 750) * 1.5; 
+// Kita hitung peredamnya. 
+// Kalau awan 100%, damping jadi 0.2 (panas gak bisa keluar, pendinginan gagal)
+// Kalau awan 0%, damping jadi 1.0 (panas keluar semua, pendinginan maksimal)
+let cloudDamping = 1 - (cloudPercent / 100 * 0.7); 
 
-    // --- TAMBAHAN LOGIKA REDAM HUJAN ---
-    if (preci > 0) {
-        // Diskon panas berdasarkan curah hujan. 
-        // Hujan 10mm bisa mengurangi kekuatan panas sekitar 60%
-let rainDampener = Math.max(0.2, 1 - (preci * 0.06)); 
-heatPower = heatPower * rainDampener;
-    }
+// Tambahkan faktor hujan (Hujan mendinginkan aspal)
+let rainDampener = (preci > 0) ? Math.max(0.2, 1 - (preci * 0.06)) : 1;
+
+// FINAL: radCooling tetap MINUS, tapi makin kecil minusnya kalau mendung (jadi terasa panas)
+radCooling = -(heatPower * cloudDamping * rainDampener);
     // -----------------------------------
     
     // Hasilnya radCooling tidak akan sedalam -2.5 lagi saat hujan
@@ -1489,7 +1498,7 @@ if(isDay){
     let timeWeight = Math.sin(Math.PI * timeProgress);
 
     // UV hanya sebagai shaping, bukan booster terpisah
-    let uvModifier = 0.8 + (Math.sqrt(uv / 11) * 0.4);
+    let uvModifier = 0.8 + (Math.sqrt(uv / 11) * 0.25);
 
     // Cloud behavior via diffuse ratio
     let cloudRatio = diffuseRad / (shortwave + 1);
@@ -1507,7 +1516,7 @@ if(isDay){
   // beberapa kondisi cuaca → dingin
 // 1. Tentukan Multiplier berdasarkan suhu (Semakin dingin, semakin pedas efeknya)
 // Di suhu 0°C, multiplier bisa mencapai 2.25x
-let weatherMultiplier = 1 + (Math.max(0, 25 - temp) * 0.05);
+let weatherMultiplier = 1 + (Math.max(0, 30 - temp) * 0.05);
 
 let weather_cond = 0;
 
@@ -1813,7 +1822,6 @@ else if (currentIcon === "☁️") {
     } else {
         activity = "Mendung pekat, pantau terus radar sebelum riding.";
     }
-    warning = "⚠️ Aspal mungkin lembap di beberapa titik.";
 }
 
 if(wind > 10){
