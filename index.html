@@ -1856,9 +1856,9 @@ function getLayeredCloudReduction(low, mid, high){
     const T_high = Math.exp(-0.12 * Math.pow(h, 1.2));
 
 const combined =
-    0.39 * T_mid +
-    0.18 * T_high +
-    0.44 * T_low;
+    0.2 * T_mid +
+    0.1 * T_high +
+    0.3 * T_low;
 
 const reduction = 1 - combined;
 
@@ -2010,8 +2010,8 @@ const high = highcloud ?? cloud;
 
 // bobot layer (low paling tebal)
 let thicknessIndex =
-  (low * 0.6) +
-  (mid * 0.35) +
+  (low * 0.20) +
+  (mid * 0.15) +
   (high * 0.05);
 
 // humidity boost (awan basah lebih tebal)
@@ -2078,7 +2078,7 @@ if (isSunBreak) {
 /* ===== FINAL ======= */
 /* ========================= */
 
-uv = Math.max(0, Math.min(12, Math.round(uv)));
+uv = Math.max(0, Math.min(14, Math.round(uv)));
 
 
 /* ========================= */
