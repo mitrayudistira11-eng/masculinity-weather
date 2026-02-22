@@ -1490,26 +1490,27 @@ console.log(`❄️ Total radCooling Penalti: -${radCooling.toFixed(2)}°C`);
 console.log("-----------------------------------------");
 
 if(isDay){
-
-  let radiationStrength = Math.sqrt(shortwave / 1000);
-    radiationStrength = Math.min(1.1, radiationStrength);
-
-    let timeProgress = hoursAfterSunrise / ((sunset - sunrise)/3600);
+  let timeProgress = hoursAfterSunrise / ((sunset - sunrise)/3600);
     let timeWeight = Math.sin(Math.PI * timeProgress);
+
+// 1. Tambahkan Math.min pada cloudRatio agar tidak melebihi 1
+let cloudRatio = Math.min(1, diffuseRad / (shortwave + 1)); 
 
     // UV hanya sebagai shaping, bukan booster terpisah
     let uvModifier = 0.8 + (Math.sqrt(uv / 11) * 0.25);
 
-    // Cloud behavior via diffuse ratio
-    let cloudRatio = diffuseRad / (shortwave + 1);
-    let cloudModifier = 1 - (cloudRatio * 0.5);
 
-    let solarFactor =
-        radiationStrength *
-        timeWeight *
-        uvModifier *
-        cloudModifier *
-        3.5;
+// 2. Modifikasi cloudModifier agar lebih sensitif pada kondisi "Sumuk"
+// Jika diffuse tinggi (mendung tipis), panas matahari turun tapi tidak drastis
+let cloudModifier = 1 - (cloudRatio * 0.4); 
+
+// 3. Tambahkan proteksi pada radiationStrength agar tidak melonjak di awal pagi
+let radiationStrength = Math.sqrt(shortwave / 1000);
+radiationStrength = Math.min(1.1, radiationStrength);
+
+// 4. Kalkulasi Final
+let solarFactor = 
+    radiationStrength * timeWeight * uvModifier * cloudModifier * 3.8; // Saya naikkan sedikit ke 3.8 karena tadi cloudModifier sudah memotong nilai
 
     console.log(`Solar Factor: ${solarFactor.toFixed(2)}°C`);
 
