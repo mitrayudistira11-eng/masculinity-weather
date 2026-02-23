@@ -1412,14 +1412,8 @@ if (terrestrialRad > 0) { // MODE SIANG
     
     // Terapkan peredam ke heatPower
    let heatPower = baseCooling * cloudDamping;
-	coolingPower = heatPower;
-    if (preci > 0) {
-        // Jika hujan, cloudFactor (0) akan ditambah kekuatan hujan
-        coolingPower = (baseCooling * cloudFactor) + (Math.sqrt(preci) * 1.5);
-    } else {
-        // Jika tidak hujan, murni mengandalkan celah awan
-        coolingPower = baseCooling * cloudFactor;
-    }
+	coolingPower = heatPower * cloudFactor;
+
 } else { // MODE MALAM
     coolingPower = 0.8 * (1 - (0.5 * (cloudPercent / 100)));
 }
