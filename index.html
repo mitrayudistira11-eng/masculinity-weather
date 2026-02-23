@@ -1404,15 +1404,13 @@ let coolingPower;
 
 if (terrestrialRad > 0) { // MODE SIANG
     let baseCooling = terrestrialRad > 350 ? 1.5 : 1.0;
-    let cloudFactor = (1 - (cloudPercent / 100));
 // --- LOGIKA PEREDAM AWAN ---
     // Jika cloud_cover 100%, peredam jadi 0.3 (hanya 30% panas yang bisa kabur)
     // Jika cloud_cover 0%, peredam jadi 1.0 (panas kabur maksimal)
     let cloudDamping = 1 - (cloudPercent / 100 * 0.7); 
     
     // Terapkan peredam ke heatPower
-   let heatPower = baseCooling * cloudDamping;
-	coolingPower = heatPower * cloudFactor;
+	coolingPower = baseCooling * cloudDamping;
 
 } else { // MODE MALAM
     coolingPower = 0.8 * (1 - (0.5 * (cloudPercent / 100)));
