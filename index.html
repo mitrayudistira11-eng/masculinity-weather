@@ -538,10 +538,10 @@ if (!isNightTime) {
     /* =========================================
        MODE SIANG (Hakim: Radiasi Matahari)
     ========================================= */
-    if (data.clouds.all > 80 && meteoData.shortwave_radiation > 400) {
+    if (data.clouds.all > 80 && meteoData.direct_radiation > meteoData.diffuse_radiation) {
         finalCloud = (data.clouds.all + meteoData.cloud_cover) / 2;
     } else {
-        finalCloud = data.clouds.all;
+        finalCloud = Math.max(data.clouds.all, meteoData.cloud_cover);
     }
 } else {
     /* =========================================
@@ -554,9 +554,12 @@ if (!isNightTime) {
     if (data.clouds.all > 80 && lowMidCloud < 40) {
         finalCloud = (data.clouds.all + meteoData.cloud_cover) / 2;
     } else {
-        finalCloud = data.clouds.all;
+        finalCloud = Math.max(data.clouds.all, meteoData.cloud_cover);
     }
 }
+  console.log("Cloud OWM:", data.clouds.all+"%");
+  console.log("Cloud Open Meteo:", meteoData.cloud_cover+"%");
+  console.log("Final Cloud:", finalCloud+"%");
 
 const totalCloud = finalCloud;
 
@@ -974,7 +977,7 @@ document.getElementById("extra").innerHTML=`
 <b>Dew Point:</b> ${dewPoint.toFixed(1)}°C (${dewStatus})<br>
 <b>Tekanan:</b> ${pressure} hPa<br>
 <b>Jarak Pandang:</b> ${visibility} km<br>
-<b>Tutupan Awan:</b> ${cloud}%<br>
+<b>Tutupan Awan:</b> ${finalCloud}%<br>
 <b>UV Index:</b> ${uvData.value} (${uvData.category})<br>
 <b>Sunrise:</b> ${sunrise}<br>
 <b>Sunset:</b> ${sunset}
@@ -1224,7 +1227,7 @@ const nonLinearHumidSiang = Math.pow(normHumid, 2) * 100;
 // 2. Hitung Dua Skenario Secara Paralel
 // --- Skenario A: Logika Siang (Gerah/Sumuk) ---
 let humFactorSiang = 0;
-let tempDeltaSiang = temp - 25;
+let tempDeltaSiang = temp - 27;
 let multiplierSiang = 0.03;
 if (temp > 35) multiplierSiang += (Math.min(temp, 45) - 35) * 0.003;
 if (temp > 45) multiplierSiang = 0.07;
@@ -1343,7 +1346,7 @@ if(cape > 800){
     }
     
     // TAPI: Jika sudah hujan, efek sumuk ini harus dinetralkan
-    if(weatherMain.includes("rain") || weatherMain.includes("thunderstorm")) {
+    if(preci > 0 || weatherMain.includes("rain") || weatherMain.includes("thunderstorm")) {
         instabilityEffect *= -1.5; // Berubah jadi booster pendinginan (Downburst)
     }
 }
@@ -1407,7 +1410,7 @@ if (terrestrialRad > 0) { // MODE SIANG
 
     // 5. EKSEKUSI FINAL
     soilCooling = 
-        soilFraction * humidityLimiter * coolingPower * (0.8 + windBoost) * 3.0; // Faktor pengali kekuatan (sesuaikan dengan "rasa" di kulit )
+        soilFraction * humidityLimiter * coolingPower * (0.8 + windBoost) * 9.0; // Faktor pengali kekuatan (sesuaikan dengan "rasa" di kulit )
 
     // Limit agar tidak terlalu ekstrem
     soilCooling = Math.min(3.5, soilCooling);
@@ -1502,7 +1505,7 @@ let cloudRatio = Math.min(1, diffuseRad / (shortwave + 1));
 
 // 2. Modifikasi cloudModifier agar lebih sensitif pada kondisi "Sumuk"
 // Jika diffuse tinggi (mendung tipis), panas matahari turun tapi tidak drastis
-let cloudModifier = 1 - (cloudRatio * 0.4); 
+let cloudModifier = 1 - (cloudRatio * 0.97); 
 
 // 3. Tambahkan proteksi pada radiationStrength agar tidak melonjak di awal pagi
 let radiationStrength = Math.sqrt(shortwave / 1000);
