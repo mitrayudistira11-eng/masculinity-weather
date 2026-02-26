@@ -551,7 +551,7 @@ if (!isNightTime) {
     const lowMidCloud = (meteoData.cloud_cover_low || 0) + (meteoData.cloud_cover_mid || 0);
     
     // Jika OWM bilang 100% tapi OpenMeteo bilang awan rendah/menengah sepi
-    if (data.clouds.all > 80 && lowMidCloud < 40) {
+    if (data.clouds.all > 80 && lowMidCloud <= 40) {
         finalCloud = (data.clouds.all + meteoData.cloud_cover) / 2;
     } else {
         finalCloud = Math.max(data.clouds.all, meteoData.cloud_cover);
@@ -823,8 +823,8 @@ if (finalCloud <= 10) {
     weatherIcon = "☁️";
     statusDiksi = "Berawan";
 } else {
-    weatherIcon = "☁️🌚";
-    statusDiksi = "Berawan Gelap";
+    weatherIcon = "☁️";
+    statusDiksi = "Berawan Total";
 }
 
 // 2. Veto Terakhir (Hujan)
