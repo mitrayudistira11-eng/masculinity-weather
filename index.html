@@ -1313,7 +1313,7 @@ let skyFactor = 1 + Math.sqrt((100 - cloudPercent) / 100);
 // 2. NON-LINEAR BASE STRENGTH (Kurva Pangkat)
 // Semakin besar selisih suhu, kekuatannya naik secara kuadratik, 
 // tapi kita beri pengali kecil agar tidak liar.
-let tempDiff = Math.max(0, referenceTemp - temp);
+let tempDiff = Math.max(0, referenceTemp - temp2);
 let baseStrength = Math.pow(tempDiff, 1.2) * 0.25; // Eksponen 1.2 bikin dia non-linear
 
 // 3. FINAL CALCULATION
@@ -1371,7 +1371,7 @@ feel += instabilityEffect;
 
     console.log(`Instability Effect: ${instabilityEffect.toFixed(2)}°C`);
 let avgtemp = (temp + temp2)/2
-let surfaceDelta = surfaceTemp - avgtemp;
+let surfaceDelta = surfaceTemp - temp2;
 
 let surfaceMemory = surfaceDelta * 0.2;
 surfaceMemory = Math.max(-3, Math.min(3, surfaceMemory));
