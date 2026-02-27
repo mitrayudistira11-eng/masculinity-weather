@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -1359,7 +1360,7 @@ if(cape > 800){
     if(pressureTrend === "Convective Pressure Drop ⛈️" || cloudPercent > 79){
         instabilityEffect *= -1.0; // Berubah jadi booster pendinginan (Downburst)
     }
-    
+    else
     // TAPI: Jika sudah hujan, efek dingin ini malah makin terasa
     if(preci > 0 || weatherMain.includes("rain") || weatherMain.includes("thunderstorm")) {
         instabilityEffect *= -1.5; // Berubah jadi booster pendinginan (Downburst)
