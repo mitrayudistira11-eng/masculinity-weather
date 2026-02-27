@@ -1206,7 +1206,7 @@ let hour = new Date().getHours();
     // 1. HITUNG PRESSURE EFFECT (UNIVERSAL)
     // =============================================
     const p_effect = calculate_pressure_effect(pressure);
-    let feel = ((temp+temp2)/2) + p_effect; // Masukkan koreksi tekanan di awal
+    let feel = ((temp*0.7)+(temp2*0.3)) + p_effect; // Masukkan koreksi tekanan di awal
 
     console.log(`Pressure Effect: ${p_effect.toFixed(4)}°C (OWM: ${temp.toFixed(2)}°C) (OPEN METEO: ${temp2.toFixed(2)}°C) (P: ${pressure} hPa) (FIRST REALFEEL: ${feel.toFixed(2)}°C)`);
 
@@ -1356,12 +1356,12 @@ if(cape > 800){
     // Efek "Sumuk" karena energi atmosfer tinggi
     instabilityEffect = Math.sqrt(cape / 2000) * 1;
 
-    // Jika tekanan turun drastis (konvektif), tambah lagi rasa pengapnya
-    if(pressureTrend === "Convective Pressure Drop ⛈️"){
-        instabilityEffect += 1.0;
+    // Jika tekanan turun drastis (konvektif), malah turun suhunya
+    if(pressureTrend === "Convective Pressure Drop ⛈️" || cloudPercent > 79){
+        instabilityEffect *= -1.0; // Berubah jadi booster pendinginan (Downburst)
     }
     
-    // TAPI: Jika sudah hujan, efek sumuk ini harus dinetralkan
+    // TAPI: Jika sudah hujan, efek dingin ini malah makin terasa
     if(preci > 0 || weatherMain.includes("rain") || weatherMain.includes("thunderstorm")) {
         instabilityEffect *= -1.5; // Berubah jadi booster pendinginan (Downburst)
     }
@@ -1445,11 +1445,20 @@ if (!isDay) {
     // Kita berikan puncak pendinginan sekitar 4-6 jam setelah sunset.
     let timeFactor = Math.min(1, Math.max(0, hoursAfterSunset / 4)); 
     
-    // Faktor Langit: Semakin sedikit awan, semakin cepat panas lepas.
-    let skyExposure = 1 - (cloudPercent / 100); 
-    
-    // Faktor Kelembapan: Udara kering lebih cepat melepas panas daripada udara jenuh.
-    let humidityFactor = 1 - (humidity / 100); 
+/* ======================================================= */
+/* === NON-LINEAR RADIATIONAL COOLING (THE HAKIM REV) === */
+/* ======================================================= */
+
+// 1. Faktor Langit Non-Linear (Exponential)
+// Menggunakan Math.pow agar saat awan 100%, nilai tetap ada sisa sekitar 0.15 - 0.20
+// Rumus: (1 - 0.8 * (cloud/100))
+// Jika cloud 100% -> skyExposure = 0.2
+let skyExposure = 1 - (Math.pow(cloudPercent / 100, 0.7) * 0.82); 
+
+// 2. Faktor Kelembapan Non-Linear
+// Udara jenuh (100%) tidak benar-benar mengunci panas 100%.
+// Kita berikan floor limit agar humidityFactor tidak menyentuh angka 0.
+let humidityFactor = 1 - (Math.pow(humidity / 100, 1.5) * 0.85);
 
     // Rumus: Base 1.8 * efek waktu * efek langit * faktor kelembapan
     radCooling = 1.8 * timeFactor * skyExposure * (0.5 + humidityFactor);
@@ -1491,7 +1500,7 @@ console.log(`☀️ Is Day: ${isDay}`);
 if (!isDay) {
     console.log(`🌙 Night Mode: Active`);
     console.log(`⏳ Hours After Sunset: ${hoursAfterSunset.toFixed(2)}h`);
-    console.log(`🌌 Sky Exposure: ${(1 - (cloudPercent / 100)).toFixed(2)} (Awan: ${cloudPercent}%)`);
+    console.log(`🌌 Sky Exposure: ${1 - (Math.pow(cloudPercent / 100, 0.7) * 0.82).toFixed(2)} (Awan: ${cloudPercent}%)`);
 } else {
     console.log(`☀️ Day Mode: Active`);
     console.log(`🔋 Terrestrial Rad: ${terrestrialRad} W/m²`);
@@ -1568,7 +1577,7 @@ else if (desc.includes("mendung syahdu") || desc.includes("uv shield")) {
 }
 else if (icon === "☁️" || desc.includes("mendung")) {
     // Kasus Veto D & E (Mendung Pekat atau Mendung Udara Kering)
-    weather_cond = -0.1 * weatherMultiplier;
+    weather_cond = -0.1 * weatherMultiplier * timeWeight;
 }
 else if (desc.includes("instabilitas") || desc.includes("tekanan drop")) {
     // Kasus Veto C
@@ -1696,8 +1705,8 @@ else if (icon === "🌦️" || desc.includes("gerimis") || desc.includes("drizzl
     weather_cond = -1.0 * weatherMultiplier; // Gerimis tekanan tinggi biasanya lebih dingin/adem
 }
 else if (icon === "☁️" || desc.includes("mendung")) {
-    // Kasus Veto D & E (Mendung Pekat atau Mendung Udara Kering)
-    weather_cond = -0.1 * weatherMultiplier;
+    // Kasus Veto D & E (Mendung Pekat atau Mendung Udara Kering) jika malam malah makin hangat
+    weather_cond = 0.2 * (cloudPercent/100) * nightFactor;
 }
 else if (desc.includes("instabilitas") || desc.includes("tekanan drop")) {
     // Kasus Veto C
@@ -2176,9 +2185,8 @@ if(
 if(
   cape > 800 &&
   high > 70 &&
-  mid > 50 &&
-  low < 30 &&
-  angin >= 8
+  mid > 30 &&
+  low < 30
 ){
   return "Cumulonimbus Lewat 🌪️";
 }
@@ -2232,7 +2240,7 @@ if(
     }
   }
 
-  if(high > 40){
+  if(high > 70){
     return "Thin Cloud Layer 🌤️";
   }
 
