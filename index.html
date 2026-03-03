@@ -530,75 +530,78 @@ document.getElementById("temp").innerText=Math.round(data.main.temp)+"°C";
 
 const icon = getWeatherIcon(data.weather[0].main);
 
+/* ======================================================= */
+/* ===    ☁️ HAKIM'S HYBRID CLOUD ENGINE V2.0 (2026)    === */
+/* ======================================================= */
+
 let finalCloud;
 const nowUnix = Date.now() / 1000;
 const isNightTime = (nowUnix < data.sys.sunrise || nowUnix > data.sys.sunset);
 
-// --- Penentu Awan Efektif (Anti-High Cloud Bias) ---
-// Kita hitung versi OpenMeteo yang sudah "dibersihkan" dari High Cloud
-const effectiveMeteo = (meteoData.cloud_cover_low * 0.75) + 
-                       (meteoData.cloud_cover_mid * 0.20) + 
-                       (meteoData.cloud_cover_high * 0.05);
+// 1. Ambil nilai tertinggi antara Low dan Mid
+const dominantCloud = Math.max(meteoData.cloud_cover_low, meteoData.cloud_cover_mid);
+
+// Kita pakai bobot 0.90 untuk Low/Mid dan hanya 0.10 untuk High
+// Karena High Cloud (Cirrus) adalah awan yang paling transparan bagi cahaya bulan
+const effectiveMeteo = (dominantCloud * 0.90) + (meteoData.cloud_cover_high * 0.10);
+
+/* ======================================================= 
+   CONTOH KASUS BAPAK: Mid 79%, Low 27%, High 100%
+   dominantCloud = 79
+   effectiveMeteo = (79 * 0.95) + (100 * 0.05) 
+                  = 75.05 + 5 = 80.05%
+   ======================================================= */
+
 const lowMidCloud = (meteoData.cloud_cover_low || 0) + (meteoData.cloud_cover_mid || 0);
 
-/* ======================================================= */
-/* ===  ☀️ SINE-BASED SOLAR THRESHOLD (SMOOTH ARC)  === */
-/* ======================================================= */
-
 if (!isNightTime) {
+    /* =========================================
+       MODE SIANG (Sine-Based Veto)
+    ========================================= */
     const swRad = meteoData.shortwave_radiation || 0;
     
-    // 1. Progress Matahari (0 s/d 1)
+    // Progress Matahari & Kurva Sinus
     let dayProgress = (nowUnix - data.sys.sunrise) / (data.sys.sunset - data.sys.sunrise);
+    let solarFactor = Math.sin(Math.max(0, Math.min(1, dayProgress)) * Math.PI);
     
-    // 2. Kurva Sinus (0 -> 1 -> 0)
-    let solarFactor = Math.sin(dayProgress * Math.PI);
-    
-    // 3. Ambang Batas (Pagi 200, Siang 850)
+    // Ambang Batas (Pagi 200, Siang 850)
     let dynamicThreshold = 200 + (650 * Math.pow(solarFactor, 1.5));
 
-    // 4. EKSEKUSI VETO
     if (swRad > dynamicThreshold) {
-        // Hitung seberapa jauh radiasi melampaui batas
+        // VETO AKTIF: Jika tembus ambang batas, paksa ke Cerah Berawan
         let cloudGap = (swRad - dynamicThreshold) / 200; 
-        
-        // REVISI: Kita tidak pakai data.clouds.all (OWM) di sini 
-        // supaya kalau OWM lapor 100%, dia tidak merusak angka Cerah kita.
-        // Kita paksa start dari 25% (Cerah Berawan) dan turun jika radiasi makin gila.
         finalCloud = Math.max(0, 25 - (cloudGap * 10));
-        
-        console.log(`☀️ SINE VETO AKTIF: Rad ${swRad} > Thr ${Math.round(dynamicThreshold)}. Final Cloud: ${Math.round(finalCloud)}%`);
     } else {
-        // Jika tidak tembus Veto, gunakan data lapisan awan yang lebih jujur
+        // Mode Normal: Gunakan Effective Meteo
         finalCloud = effectiveMeteo;
-        console.log(`☁️ NORMAL MODE: Menggunakan Effective Meteo (${Math.round(effectiveMeteo)}%)`);
     }
 } else {
     /* =========================================
-       MODE MALAM (Hakim: Low & Mid Cloud)
+       MODE MALAM (Logic Lapisan Awan)
     ========================================= */
-    
-    // VETO MALAM: Jika OWM lapor 80% tapi awan rendah/menengah sepi (< 30)
-    // Berarti OWM cuma liat Cirrus atau data lama.
-    if (data.clouds.all > 80 && lowMidCloud < 30) {
-        // Kita paksa finalCloud turun ke rata-rata yang lebih realistis
+    // Jika OWM 'ngeyel' 80% tapi awan bawah sepi, percaya Meteo
+    if (data.clouds.all > 80 && lowMidCloud < 50) {
         finalCloud = effectiveMeteo;
     } else {
-        // Tetap gunakan Max tapi dari effectiveMeteo (supaya High Cloud gak ngerusak)
+        // Ambil yang paling menutup langit tapi tetap berbasis data lapisan
         finalCloud = Math.max(data.clouds.all, effectiveMeteo);
     }
 }
 
-// ⚠️ FINAL CLIPPING: Pastikan tidak pernah 'halusinasi' 100% kalau Low-Mid kosong
+// ⚠️ FINAL CLIPPING: Perlindungan terhadap "Mendung Palsu"
+// Jika awan rendah & menengah di bawah 10%, tidak boleh lapor Mendung Gelap (>50%)
 if (lowMidCloud < 10 && finalCloud > 50) {
-    finalCloud = 25; // "Cerah Berawan" di Dashboard
+    finalCloud = 25; 
 }
 
-console.log("Cloud OWM:", data.clouds.all + "%");
-console.log("Cloud Effective (Meteo):", Math.round(effectiveMeteo) + "%");
-console.log("Final Result:", Math.round(finalCloud) + "%");
+// Bulatkan hasil akhir
+const totalCloud = Math.round(finalCloud);
 
-const totalCloud = finalCloud;
+console.log("--- ☁️ CLOUD ENGINE DEBUG ---");
+console.log(`Status: ${isNightTime ? '🌙 NIGHT' : '☀️ DAY'}`);
+console.log(`OWM: ${data.clouds.all}% | Effective: ${Math.round(effectiveMeteo)}%`);
+if (!isNightTime) console.log(`Shortwave: ${meteoData.shortwave_radiation} W/m2`);
+console.log(`FINAL RESULT: ${totalCloud}%`);
 
 // Ambil data dasar
 const hoedjan = data.rain?.["1h"] ?? 0;
@@ -638,9 +641,9 @@ const chance = calculateNonLinearRain(
 // data.main.humidity,
 finalHumidity,
     data.main.temp,
-    meteoData.cape,    
-    pressureTrend, 
-    finalCloud, 
+    meteoData.cape,
+    pressureTrend,
+    finalCloud,
     data.weather[0].main.toLowerCase(),
     data.sys.sunrise,
     data.sys.sunset,
@@ -908,9 +911,6 @@ if (rawHum < 50 && rawCloud > 85) {
 } else if (pemicuEmbun && rawHum > 94 && tekanan >= 1009 && curahHujan <= 0 && dewPointSpread <= 1.5 && !isRaining) {
     weatherDesc = "Sangat Lembap / Potensi 🌫️";
     weatherIcon = "🌫️";
-} else if (rawHum > 89 && !mainweather.includes("rain") && !mainweather.includes("drizzle")) {
-    weatherDesc = "Sangat Lembap / Potensi 🌧";
-    weatherIcon = "☁️";
 } else
 
 // E. VETO AWAN (Koreksi API Global)
@@ -1296,9 +1296,7 @@ let humFactorMalam = 0;
 if (temp >= 25) {
     humFactorMalam = (temp - 25) * humStrength * 0.9;
 } else {
-    let windPower = Math.pow(v_kmh, 1.2);
-    let windFactor = 1.0 + (windPower * 0.1);
-    humFactorMalam = -(windFactor * humStrength);
+    humFactorMalam -= humStrength;
 }
 
 // 3. LOGIKA CROSSFADE (Transisi Mulus)
@@ -1351,7 +1349,7 @@ let skyFactor = 1 + Math.sqrt((100 - cloudPercent) / 100);
 // Semakin besar selisih suhu, kekuatannya naik secara kuadratik, 
 // tapi kita beri pengali kecil agar tidak liar.
 let tempDiff = Math.max(0, referenceTemp - temp2);
-let baseStrength = Math.pow(tempDiff, 1.2) * 0.25; // Eksponen 1.2 bikin dia non-linear
+let baseStrength = Math.pow(tempDiff, 1.2) * 0.075; // Eksponen 1.2 bikin dia non-linear
 
 // 3. FINAL CALCULATION
 let finalStrength = baseStrength * skyFactor;
@@ -2545,7 +2543,6 @@ let score = 0;
     /* ======================================= */
     /* 2️⃣ HARD OVERRIDE (DETEKSI REAL-TIME)    */
     /* ======================================= */
-const support = (hum = 100) && (cloud = 100);
 const isRaining   = (precipitation > 0 || preci2 > 1);
     if (isRaining) {
         return 100;
@@ -2568,9 +2565,9 @@ const isRaining   = (precipitation > 0 || preci2 > 1);
             // Jenuh di bawah + Langit bersih = Kabut/Embun (Bukan Hujan)
             score -= 15; 
         }
-    } else if (spread < 5) {
-        score += 10;
     }
+
+console.log(`AWAN DI RAIN CHANCE: ${cloud}%`);
 
     /* ======================================= */
     /* 5️⃣ INSTABILITY (CAPE - BAHAN BAKAR)     */
@@ -2598,10 +2595,6 @@ const isRaining   = (precipitation > 0 || preci2 > 1);
     /* ======================================= */
     /* 8️⃣ NIGHT & SENSITIVITY FILTER           */
     /* ======================================= */
-    if (isNight) {
-        let cloudClearness = 1 - (cloud / 100);
-        score -= (Math.pow(cloudClearness, 1.5) * 20);
-    }
 
     // Filter Virga (Hujan menguap sebelum sampai tanah)
     if (hum < 50) score -= 15;
