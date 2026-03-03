@@ -534,32 +534,69 @@ let finalCloud;
 const nowUnix = Date.now() / 1000;
 const isNightTime = (nowUnix < data.sys.sunrise || nowUnix > data.sys.sunset);
 
+// --- Penentu Awan Efektif (Anti-High Cloud Bias) ---
+// Kita hitung versi OpenMeteo yang sudah "dibersihkan" dari High Cloud
+const effectiveMeteo = (meteoData.cloud_cover_low * 0.75) + 
+                       (meteoData.cloud_cover_mid * 0.20) + 
+                       (meteoData.cloud_cover_high * 0.05);
+const lowMidCloud = (meteoData.cloud_cover_low || 0) + (meteoData.cloud_cover_mid || 0);
+
+/* ======================================================= */
+/* ===  ☀️ SINE-BASED SOLAR THRESHOLD (SMOOTH ARC)  === */
+/* ======================================================= */
+
 if (!isNightTime) {
-    /* =========================================
-       MODE SIANG (Hakim: Radiasi Matahari)
-    ========================================= */
-    if (data.clouds.all > 80 && meteoData.direct_radiation > meteoData.diffuse_radiation) {
-        finalCloud = (data.clouds.all + meteoData.cloud_cover) / 2;
+    const swRad = meteoData.shortwave_radiation || 0;
+    
+    // 1. Progress Matahari (0 s/d 1)
+    let dayProgress = (nowUnix - data.sys.sunrise) / (data.sys.sunset - data.sys.sunrise);
+    
+    // 2. Kurva Sinus (0 -> 1 -> 0)
+    let solarFactor = Math.sin(dayProgress * Math.PI);
+    
+    // 3. Ambang Batas (Pagi 200, Siang 850)
+    let dynamicThreshold = 200 + (650 * Math.pow(solarFactor, 1.5));
+
+    // 4. EKSEKUSI VETO
+    if (swRad > dynamicThreshold) {
+        // Hitung seberapa jauh radiasi melampaui batas
+        let cloudGap = (swRad - dynamicThreshold) / 200; 
+        
+        // REVISI: Kita tidak pakai data.clouds.all (OWM) di sini 
+        // supaya kalau OWM lapor 100%, dia tidak merusak angka Cerah kita.
+        // Kita paksa start dari 25% (Cerah Berawan) dan turun jika radiasi makin gila.
+        finalCloud = Math.max(0, 25 - (cloudGap * 10));
+        
+        console.log(`☀️ SINE VETO AKTIF: Rad ${swRad} > Thr ${Math.round(dynamicThreshold)}. Final Cloud: ${Math.round(finalCloud)}%`);
     } else {
-        finalCloud = Math.max(data.clouds.all, meteoData.cloud_cover);
+        // Jika tidak tembus Veto, gunakan data lapisan awan yang lebih jujur
+        finalCloud = effectiveMeteo;
+        console.log(`☁️ NORMAL MODE: Menggunakan Effective Meteo (${Math.round(effectiveMeteo)}%)`);
     }
 } else {
     /* =========================================
        MODE MALAM (Hakim: Low & Mid Cloud)
     ========================================= */
-    // Di malam hari, kita cek awan yang bikin gelap (Low & Mid)
-    const lowMidCloud = (meteoData.cloud_cover_low || 0) + (meteoData.cloud_cover_mid || 0);
     
-    // Jika OWM bilang 100% tapi OpenMeteo bilang awan rendah/menengah sepi
-    if (data.clouds.all > 80 && lowMidCloud <= 40) {
-        finalCloud = (data.clouds.all + meteoData.cloud_cover) / 2;
+    // VETO MALAM: Jika OWM lapor 80% tapi awan rendah/menengah sepi (< 30)
+    // Berarti OWM cuma liat Cirrus atau data lama.
+    if (data.clouds.all > 80 && lowMidCloud < 30) {
+        // Kita paksa finalCloud turun ke rata-rata yang lebih realistis
+        finalCloud = effectiveMeteo;
     } else {
-        finalCloud = Math.max(data.clouds.all, meteoData.cloud_cover);
+        // Tetap gunakan Max tapi dari effectiveMeteo (supaya High Cloud gak ngerusak)
+        finalCloud = Math.max(data.clouds.all, effectiveMeteo);
     }
 }
-  console.log("Cloud OWM:", data.clouds.all+"%");
-  console.log("Cloud Open Meteo:", meteoData.cloud_cover+"%");
-  console.log("Final Cloud:", finalCloud+"%");
+
+// ⚠️ FINAL CLIPPING: Pastikan tidak pernah 'halusinasi' 100% kalau Low-Mid kosong
+if (lowMidCloud < 10 && finalCloud > 50) {
+    finalCloud = 25; // "Cerah Berawan" di Dashboard
+}
+
+console.log("Cloud OWM:", data.clouds.all + "%");
+console.log("Cloud Effective (Meteo):", Math.round(effectiveMeteo) + "%");
+console.log("Final Result:", Math.round(finalCloud) + "%");
 
 const totalCloud = finalCloud;
 
@@ -1303,7 +1340,7 @@ let morningCoolMemory = 0;
 // Gunakan weeklyMean sebagai benchmark. Jika gagal, fallback ke 28.
     const referenceTemp = weeklyMean || 28;
 
-if (hoursAfterSunrise >= -3 && hoursAfterSunrise <= 1) {
+if (hoursAfterSunrise >= -5 && hoursAfterSunrise <= 1) {
     
 // 1. DINAMIKA KEKUATAN (Non-Linear Sky Factor)
 // Kita gunakan akar (Math.sqrt) agar saat cerah (100%), 
@@ -1326,18 +1363,30 @@ if (finalStrength > 5) {
 }
 
     // 2. LOGIKA 3 TAHAP (Progressif)
-    if (hoursAfterSunrise < -1.5) {
-        // Tahap Awal: Dini hari
-        let progress = (hoursAfterSunrise + 3) / 1.5; 
-        morningCoolMemory = -(finalStrength * 0.4 * progress);
+// --- 1. TAHAP AWAL (-5 jam s/d -2 jam sebelum Sunrise) ---
+    // Durasi: 3 jam. Pendinginan merangkak dari 0% ke 100% dari "finalStrength"
+    if (hoursAfterSunrise < -2) {
+        // Progress dihitung dari -5 (0) ke -2 (1)
+        let progress = (hoursAfterSunrise + 5) / 3; 
+        
+        // Agar naiknya smooth (tidak kaku), kita pakai Math.pow
+        morningCoolMemory = -(finalStrength * Math.pow(progress, 0.8));
     }
-    else if (hoursAfterSunrise >= -1.5 && hoursAfterSunrise <= 0.5) {
-        // Tahap Puncak: Fajar (Titik terdingin)
+    
+    // --- 2. TAHAP PUNCAK (-2 jam s/d 0 / Waktu Sunrise) ---
+    // Di sinilah titik paling dingin (Blue Hour/Fajar)
+    else if (hoursAfterSunrise >= -2 && hoursAfterSunrise <= 0) {
         morningCoolMemory = -finalStrength;
     }
+    
+    // --- 3. TAHAP AKHIR (Setelah Sunrise s/d +1 jam) ---
+    // Matahari mulai muncul, efek pendinginan tanah mulai kalah oleh radiasi baru
     else {
-        // Tahap Akhir: Pasca Sunrise (Mencair)
-        let decay = 1 - (hoursAfterSunrise - 0.5) / 0.5;
+        // Decay dihitung dari 0 (1) ke 1 (0) dalam durasi 1 jam
+        let decay = 1 - (hoursAfterSunrise / 1); 
+        
+        // Kita pastikan decay tidak negatif
+        decay = Math.max(0, decay);
         morningCoolMemory = -(finalStrength * decay);
     }
 }
