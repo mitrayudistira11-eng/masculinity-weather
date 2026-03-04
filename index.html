@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -636,7 +635,7 @@ if (isRaining) {
 
 const uvData = calculateUV(
 data.weather[0].main.toLowerCase(),
-finalCloud,
+,
 (data.visibility ?? 10000) / 1000,
 data.sys.sunrise,
 data.sys.sunset,
@@ -655,7 +654,7 @@ finalHumidity,
     data.main.temp,
     meteoData.cape,
     pressureTrend,
-    finalCloud,
+    ,
     data.weather[0].main.toLowerCase(),
     data.sys.sunrise,
     data.sys.sunset,
@@ -673,7 +672,7 @@ const rainStatusEl = document.getElementById("rainStatus");
    MODIFIKASI LOGIKA STATUS (INTEGRASI CAPE & AWAN)
    ======================================================= */
 
-const awan = finalCloud; // Hasil hitungan booster kita tadi
+const awan = ; // Hasil hitungan booster kita tadi
 const humi = finalHumidity;
 const cape = meteoData.cape || 0; // Ambil data CAPE
 
@@ -808,7 +807,7 @@ else if(dewPoint >= 16) dewStatus = "Sejuk";
 else dewStatus = "Kering ❄️";
 const visibility = ((data.visibility || 10000) / 1000).toFixed(1);
 const pressure=data.main.pressure;
-const cloud = finalCloud;
+const cloud = ;
 const sunrise=formatTime(data.sys.sunrise);
 const sunset=formatTime(data.sys.sunset);
 const gust = data.wind.gust;
@@ -850,7 +849,7 @@ const dewPointSpread = data.main.temp - dewPoint;
 const pemicuEmbun = (angin_real <= 2) || (jenis_awan === "High Cloud Night 🌙☁️") || (jenis_awan === "Thin Cloud Layer 🌤️");
 // --- START LOGIC OVERRIDE ---
 
-// 1. Tentukan Emoji Berdasarkan Kasta (finalCloud)
+// 1. Tentukan Emoji Berdasarkan Kasta ()
 /* ======================================= 
    ⚖️ THE HAKIM LOGIC: MAPPING IKON & DIKSI
    ======================================= */
@@ -858,19 +857,19 @@ const pemicuEmbun = (angin_real <= 2) || (jenis_awan === "High Cloud Night 🌙�
 let statusDiksi;
 // Variabel weatherIcon  sudah benar, kita isi barengan di sini
 
-if (finalCloud <= 10) {
+if ( <= 10) {
     weatherIcon = "☀️";
     statusDiksi = "Sebagian Besar Cerah";
-} else if (finalCloud <= 30) {
+} else if ( <= 30) {
     weatherIcon = "🌤️";
     statusDiksi = "Sebagian Cerah";
-} else if (finalCloud <= 60) {
+} else if ( <= 60) {
     weatherIcon = "⛅";
     statusDiksi = "Sebagian Berawan";
-} else if (finalCloud <= 85) {
+} else if ( <= 85) {
     weatherIcon = "🌥️";
     statusDiksi = "Sebagian Besar Berawan";
-} else if (finalCloud <= 98) {
+} else if ( <= 98) {
     weatherIcon = "☁️";
     statusDiksi = "Berawan";
 } else {
@@ -881,7 +880,7 @@ if (finalCloud <= 10) {
 // 2. Veto Terakhir (Hujan)
 if (hoedjan > 0.5) {
     // Kalau hujan tapi awan di bawah 85%, berarti hujan panas/rintik
-    if (finalCloud < 85) {
+    if ( < 85) {
         weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
         weatherIcon = "🌦️";
     } else {
@@ -963,7 +962,7 @@ weatherDesc,
 weatherIcon,
 data.sys.sunrise,
 data.sys.sunset,
-finalCloud,
+,
 uvData.value,
 meteoData.shortwave_radiation,
 meteoData.direct_radiation,
@@ -980,7 +979,7 @@ setDynamicBackground(
     weatherIcon, // <--- Gunakan weatherIcon hasil Veto Hakim Logic
     data.sys.sunrise,
     data.sys.sunset,
-    finalCloud
+    
 );
 
 // --- CARA PANGGILNYA ---
@@ -1025,7 +1024,7 @@ document.getElementById("extra").innerHTML=`
 <b>Dew Point:</b> ${dewPoint.toFixed(1)}°C (${dewStatus})<br>
 <b>Tekanan:</b> ${pressure} hPa<br>
 <b>Jarak Pandang:</b> ${visibility} km<br>
-<b>Tutupan Awan:</b> ${finalCloud}%<br>
+<b>Tutupan Awan:</b> ${totalCloud}%<br>
 <b>UV Index:</b> ${uvData.value} (${uvData.category})<br>
 <b>Sunrise:</b> ${sunrise}<br>
 <b>Sunset:</b> ${sunset}
