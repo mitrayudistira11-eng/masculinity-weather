@@ -539,19 +539,10 @@ const nowUnix = Date.now() / 1000;
 const isNightTime = (nowUnix < data.sys.sunrise || nowUnix > data.sys.sunset);
 
 // 1. Ambil nilai tertinggi antara Low dan Mid
-const dominantCloud = Math.max(meteoData.cloud_cover_low, meteoData.cloud_cover_mid);
+const dominantCloud = Math.max(meteoData.cloud_cover_low || 0, meteoData.cloud_cover_mid || 0);
 
-// Kita pakai bobot 0.90 untuk Low/Mid dan hanya 0.10 untuk High
-// Karena High Cloud (Cirrus) adalah awan yang paling transparan bagi cahaya bulan
-const effectiveMeteo = (dominantCloud * 0.90) + (meteoData.cloud_cover_high * 0.10);
-
-/* ======================================================= 
-   CONTOH KASUS BAPAK: Mid 79%, Low 27%, High 100%
-   dominantCloud = 79
-   effectiveMeteo = (79 * 0.95) + (100 * 0.05) 
-                  = 75.05 + 5 = 80.05%
-   ======================================================= */
-
+// Bobot: Low/Mid 90%, High 10%
+const effectiveMeteo = (dominantCloud * 0.90) + ((meteoData.cloud_cover_high || 0) * 0.10);
 const lowMidCloud = (meteoData.cloud_cover_low || 0) + (meteoData.cloud_cover_mid || 0);
 
 if (!isNightTime) {
@@ -559,43 +550,64 @@ if (!isNightTime) {
        MODE SIANG (Sine-Based Veto)
     ========================================= */
     const swRad = meteoData.shortwave_radiation || 0;
-    
-    // Progress Matahari & Kurva Sinus
     let dayProgress = (nowUnix - data.sys.sunrise) / (data.sys.sunset - data.sys.sunrise);
     let solarFactor = Math.sin(Math.max(0, Math.min(1, dayProgress)) * Math.PI);
-    
-    // Ambang Batas (Pagi 200, Siang 850)
     let dynamicThreshold = 200 + (650 * Math.pow(solarFactor, 1.5));
 
     if (swRad > dynamicThreshold) {
-        // VETO AKTIF: Jika tembus ambang batas, paksa ke Cerah Berawan
         let cloudGap = (swRad - dynamicThreshold) / 200; 
         finalCloud = Math.max(0, 25 - (cloudGap * 10));
     } else {
-        // Mode Normal: Gunakan Effective Meteo
         finalCloud = effectiveMeteo;
     }
 } else {
     /* =========================================
        MODE MALAM (Logic Lapisan Awan)
     ========================================= */
-    // Jika OWM 'ngeyel' 80% tapi awan bawah sepi, percaya Meteo
     if (data.clouds.all > 80 && lowMidCloud < 50) {
         finalCloud = effectiveMeteo;
     } else {
-        // Ambil yang paling menutup langit tapi tetap berbasis data lapisan
         finalCloud = Math.max(data.clouds.all, effectiveMeteo);
     }
 }
 
-// ⚠️ FINAL CLIPPING: Perlindungan terhadap "Mendung Palsu"
-// Jika awan rendah & menengah di bawah 10%, tidak boleh lapor Mendung Gelap (>50%)
-if (lowMidCloud < 10 && finalCloud > 50) {
-    finalCloud = 25; 
+/* ======================================================= 
+   🚀 CAPE BOOST LOGIC (The "Sumuk" Factor)
+   Jika energi atmosfer tinggi, naikkan kepekatan awan 
+   meskipun API lapor awannya dikit.
+   ======================================================= */
+const capeValue = meteoData.cape || 0;
+
+if (capeValue > 800) {
+    // Tambahkan bonus progresif: setiap 20 J/kg naik 1%
+    // Contoh: CAPE 1500 -> (1500-800)/20 = +35%
+    let capeBonus = (capeValue - 800) / 20;
+    finalCloud += capeBonus;
 }
+
+// JIKA CAPE SANGAT EKSTRIM (Di atas 1400) DAN ADA AWAN (Low+Mid > 20)
+// Paksa tampilan ke "Mendung Berat" (Min 85%) karena langit pasti butek pekat
+if (capeValue > 1400 && lowMidCloud > 20) {
+    finalCloud = Math.max(finalCloud, 85);
+}
+
+// ⚠️ FINAL CLIPPING: Perlindungan terhadap "Mendung Palsu"
+// Jika awan rendah & menengah benar-benar kosong (<5%), tetap tampilkan cerah
+if (lowMidCloud < 5 && finalCloud > 40 && capeValue < 1200) {
+    finalCloud = 20; 
+}
+
+// Pastikan tidak tembus 100%
+finalCloud = Math.min(100, finalCloud);
 
 // Bulatkan hasil akhir
 const totalCloud = Math.round(finalCloud);
+
+/* HASIL AKHIR: 
+   Jika tadi dapet 36.1% tapi CAPE 1500, 
+   maka sekarang (36.1 + 35) = 71% atau bahkan terdorong ke 85% 
+   karena validasi Mendung Berat.
+*/
 
 console.log("--- ☁️ CLOUD ENGINE DEBUG ---");
 console.log(`Status: ${isNightTime ? '🌙 NIGHT' : '☀️ DAY'}`);
@@ -657,9 +669,13 @@ const rainLabel = document.getElementById("rainChance");
 const rainFill = document.getElementById("rainFill");
 const rainStatusEl = document.getElementById("rainStatus");
 
-const awan = finalCloud;
-const humi = // data.main.humidity;
-finalHumidity;
+/* ======================================================= 
+   MODIFIKASI LOGIKA STATUS (INTEGRASI CAPE & AWAN)
+   ======================================================= */
+
+const awan = finalCloud; // Hasil hitungan booster kita tadi
+const humi = finalHumidity;
+const cape = meteoData.cape || 0; // Ambil data CAPE
 
 rainLabel.innerText = chance + "%";
 rainFill.style.width = chance + "%";
@@ -667,70 +683,65 @@ rainFill.style.width = chance + "%";
 let statusText = "";
 let statusColor = "#94a3b8";
 
-/* ==========================
-   🌙 NIGHT LOGIC
-========================== */
+if (isNightTime) {
+    /* ==========================
+       🌙 NIGHT LOGIC
+    ========================== */
 
-if(isNightTime){
-
-    if(chance >= 99){
+    if (chance >= 99) {
         statusText = "🌧️ Hujan sedang terjadi di sebagian/seluruh wilayah.";
         statusColor = "#f87171";
-    }
-
-    else if(
-        humi > 95 &&
-        pressureTrend === "Stable Pressure ☁️"
-    ){
+    } 
+    else if (pressureTrend === "Convective Pressure Drop ⛈️" || cape > 900) {
+        // Meskipun belum hujan, kalau CAPE 1500 seperti tadi, ini statusnya:
+        statusText = "⚡ Atmosfer labil, potensi hujan mendadak.";
+        statusColor = "#fbbf24";
+    } 
+    else if (humi > 95 && pressureTrend === "Stable Pressure ☁️") {
         statusText = "❄️ Udara sangat jenuh, potensi embun tebal.";
         statusColor = "#a5f3fc";
+    } 
+    else {
+        // Penentuan Stabil Sejuk vs Stabil Gerah
+        if (cape > 1500) {
+            statusText = "🌙 Atmosfer stabil tapi udara terasa gerah.";
+            statusColor = "#ff9800"; // Oranye hangat
+        } else {
+            statusText = "🌙 Atmosfer relatif stabil dan tenang.";
+            statusColor = "#94a3b8";
+        }
     }
 
-    else if(
-        pressureTrend === "Convective Pressure Drop ⛈️"
-    ){
-        statusText = "⚡ Atmosfer labil, potensi hujan konvektif malam.";
-        statusColor = "#fbbf24";
-    }
+} else {
+    /* ==========================
+       ☀️ DAY LOGIC
+    ========================== */
 
-    else{
-        statusText = "🌙 Atmosfer relatif stabil.";
-    }
-
-}
-
-/* ==========================
-   ☀️ DAY LOGIC
-========================== */
-
-else{
-
-    if(chance >= 99){
+    if (chance >= 99) {
         statusText = "🌧️ Hujan sedang terjadi.";
         statusColor = "#f87171";
-    }
-
-    else if(
-        awan > 85 &&
-        chance > 70 &&
-        pressureTrend === "Convective Pressure Drop ⛈️"
-    ){
-        statusText = "🌩️ Mendung pekat, hujan kemungkinan segera turun.";
+    } 
+    else if (awan > 85 && chance > 70 && (pressureTrend === "Convective Pressure Drop ⛈️" || cape > 1200)) {
+        statusText = "🌩️ Mendung pekat berenergi, hujan segera turun.";
         statusColor = "#fbbf24";
-    }
-
-    else if(chance > 70){
+    } 
+    else if (chance > 70) {
         statusText = "⚠️ Probabilitas hujan tinggi.";
         statusColor = "#f87171";
-    }
-
-    else if(chance < 40 && humi > 80){
+    } 
+    else if (awan < 40 && humi > 80) {
         statusText = "🍃 Udara lembap namun atmosfer stabil.";
         statusColor = "#22c55e";
-    }
-
-    else{
-        statusText = "☁️ Kondisi atmosfer cenderung stabil.";
+    } 
+    else {
+        // Kondisi Siang Stabil
+        if (cape > 1500) {
+            statusText = "🔥 Cuaca cerah/berawan yang sangat terik & gerah.";
+            statusColor = "#f43f5e"; 
+        } else {
+            statusText = "☁️ Kondisi atmosfer cenderung stabil.";
+            statusColor = "#94a3b8";
+        }
     }
 }
 
@@ -1186,7 +1197,7 @@ function getWindEffect(temp, humidity, wind, gust, weatherMain, pressure){
     // Jika hasil akhir tetap NaN karena input aneh, kembalikan 0
     return isNaN(effect) ? 0 : effect;
 }
-	
+
 function customFeelLike(
     temp,
     temp2,
@@ -2667,5 +2678,3 @@ autoUpdateScheduler();
 
 </body>
 </html>
-
-
