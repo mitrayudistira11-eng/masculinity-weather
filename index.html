@@ -1143,7 +1143,7 @@ function calculate_pressure_effect(pressure) {
 function getWindEffect(temp, humidity, wind, gust, weatherMain, pressure){
     const skinTemp = 34;
     // Gunakan 0 jika parameter tidak ada/null
-    let v = Math.max(wind || 0, gust || 0);
+	let v = Math.max(wind ?? 0, gust ?? 0);
     let h = Math.max(0.001, humidity || 0); // Cegah humidity 0 agar Math.log tidak error
     let wMain = weatherMain || ""; // Pastikan string agar .includes() tidak crash
 
@@ -2667,4 +2667,5 @@ autoUpdateScheduler();
 
 </body>
 </html>
+
 
