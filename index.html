@@ -1142,28 +1142,39 @@ function calculate_pressure_effect(pressure) {
 
 function getWindEffect(temp, humidity, wind, gust, weatherMain, pressure){
     const skinTemp = 34;
-    let v = Math.max(wind || 0, gust);
+    // Gunakan 0 jika parameter tidak ada/null
+    let v = Math.max(wind || 0, gust || 0);
+    let h = Math.max(0.001, humidity || 0); // Cegah humidity 0 agar Math.log tidak error
+    let wMain = weatherMain || ""; // Pastikan string agar .includes() tidak crash
 
     if(v < 0.5) return 0;
 
-    // Tambahan: Faktor Kepadatan Udara (Universal)
-    // Angin di dataran rendah (padat) lebih "terasa" dibanding dataran tinggi (tipis)
     const densityFactor = pressure ? (pressure / 1013.25) : 1;
 
     const a = 17.27;
     const b = 237.7;
-    const alpha = ((a * temp) / (b + temp)) + Math.log(humidity/100);
-    const dew = (b * alpha) / (a - alpha);
+    
+    // Safety check untuk pembagi temp + b
+    const tempDivider = b + temp;
+    if (tempDivider === 0) return 0;
+
+    const alpha = ((a * temp) / tempDivider) + Math.log(h / 100);
+    
+    // Safety check untuk pembagi a - alpha
+    const alphaDivider = a - alpha;
+    const dew = alphaDivider !== 0 ? (b * alpha) / alphaDivider : 0;
 
     let vaporGradient = Math.max(0, skinTemp - dew);
     let evapEfficiency = Math.min(1.2, vaporGradient / 20);
 
-    // Ventilasi angin kini dipengaruhi kepadatan udara lokal
     let windVent = Math.sqrt(v) * 0.9 * densityFactor;
 
     let effect = 0;
     if(temp < skinTemp){
-        if (weatherMain.includes("rain") || weatherMain.includes("sleet") || weatherMain.includes("drizzle")) {
+        // Cek weatherMain dengan aman
+        if (wMain.toLowerCase().includes("rain") || 
+            wMain.toLowerCase().includes("sleet") || 
+            wMain.toLowerCase().includes("drizzle")) {
             windVent *= 1.4; 
         }
         effect = windVent * evapEfficiency;
@@ -1171,9 +1182,11 @@ function getWindEffect(temp, humidity, wind, gust, weatherMain, pressure){
         let heatDelta = (temp - skinTemp) / 10;
         effect = - windVent * heatDelta * (1 - evapEfficiency);
     }
-    return effect;
+    
+    // Jika hasil akhir tetap NaN karena input aneh, kembalikan 0
+    return isNaN(effect) ? 0 : effect;
 }
-
+	
 function customFeelLike(
     temp,
     temp2,
@@ -2654,3 +2667,4 @@ autoUpdateScheduler();
 
 </body>
 </html>
+
