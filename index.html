@@ -620,7 +620,7 @@ const hoedjan = data.rain?.["1h"] ?? 0;
 const humidityOWM = data.main.humidity; // Data dari OpenWeatherMap
 const humidityOM  = meteoData.relative_humidity_2m; // Data dari Open-Meteo
 const support = (data.main.humidity = 100) && (data.clouds.all = 100);
-const isRaining   = (meteoData.precipitation > 0 || hoedjan > 1);
+const isRaining   = (meteoData.precipitation > 0.5 || hoedjan > 0.5);
 let finalHumidity;
 let sourceInfo = "";
 
@@ -898,7 +898,7 @@ if (curahHujan > 0 && curahHujan <= 1 && hoedjan > 1.5) {
     weatherDesc = "Hujan";
     weatherIcon = "🌧️";
 } else
-if (curahHujan > 0 && curahHujan <= 1 ) {
+if (curahHujan > 0.5 && curahHujan <= 1 ) {
     weatherDesc = "Gerimis ☁️💧";
     weatherIcon = "🌦️";
 } else
@@ -1627,7 +1627,7 @@ if (icon === "⛈️" || desc.includes("badai") || desc.includes("thunderstorm")
 } 
 else if (icon === "🌧️" || desc.includes("rain")) {
     // Termasuk "Hujan (Detected by Satellite)" atau "Sangat Lembap"
-	let rainBase = 1.2;
+	let rainBase = 0.7;
 // Jika ada data presipitasi (mm/jam)
     if (preci > 0) {
         // Setiap 1mm hujan, tambah efek dingin 0.1 derajat
@@ -1639,7 +1639,7 @@ else if (icon === "🌧️" || desc.includes("rain")) {
 } 
 else if (icon === "🌦️" || desc.includes("gerimis") || desc.includes("drizzle")) {
     // Masuk ke sini jika "Gerimis ☁️💧"
-    weather_cond = -1.0 * weatherMultiplier; // Gerimis tekanan tinggi biasanya lebih dingin/adem
+    weather_cond = -0.4 * weatherMultiplier; // Gerimis tekanan tinggi biasanya lebih dingin/adem
 }
 else if (desc.includes("mendung syahdu") || desc.includes("uv shield")) {
     // Sesuai LOGIKA B (ATMOSPHERIC SHIELD)
@@ -1652,10 +1652,10 @@ else if (icon === "☁️" || desc.includes("mendung")) {
 }
 else if (desc.includes("instabilitas") || desc.includes("tekanan drop")) {
     // Kasus Veto C
-    weather_cond = -1.1 * weatherMultiplier; // Udara sebelum badai biasanya terasa tidak nyaman/dingin
+    weather_cond = -0.3 * weatherMultiplier; // Udara sebelum badai biasanya terasa tidak nyaman/dingin
 }
 else if (icon === "🌫️" || desc.includes("mist") || desc.includes("fog")) {
-    weather_cond = -0.6 * weatherMultiplier;
+    weather_cond = -0.2 * weatherMultiplier;
 }
 
 // 3. Eksekusi ke Variabel Feel
@@ -1761,7 +1761,7 @@ if (icon === "⛈️" || desc.includes("badai") || desc.includes("thunderstorm")
 } 
 else if (icon === "🌧️" || desc.includes("rain")) {
     // Termasuk "Hujan (Detected by Satellite)" atau "Sangat Lembap"
-	let rainBase = 1.2;
+	let rainBase = 0.5;
 // Jika ada data presipitasi (mm/jam)
     if (preci > 0) {
         // Setiap 1mm hujan, tambah efek dingin 0.1 derajat
@@ -1773,7 +1773,7 @@ else if (icon === "🌧️" || desc.includes("rain")) {
 } 
 else if (icon === "🌦️" || desc.includes("gerimis") || desc.includes("drizzle")) {
     // Masuk ke sini jika "Gerimis ☁️💧"
-    weather_cond = -1.0 * weatherMultiplier; // Gerimis tekanan tinggi biasanya lebih dingin/adem
+    weather_cond = -0.2 * weatherMultiplier; // Gerimis tekanan tinggi biasanya lebih dingin/adem
 }
 else if (icon === "☁️" || desc.includes("mendung")) {
     // Kasus Veto D & E (Mendung Pekat atau Mendung Udara Kering) jika malam malah makin hangat
@@ -1781,10 +1781,10 @@ else if (icon === "☁️" || desc.includes("mendung")) {
 }
 else if (desc.includes("instabilitas") || desc.includes("tekanan drop")) {
     // Kasus Veto C
-    weather_cond = -1.1 * weatherMultiplier; // Udara sebelum badai biasanya terasa tidak nyaman/dingin
+    weather_cond = -0.3 * weatherMultiplier; // Udara sebelum badai biasanya terasa tidak nyaman/dingin
 }
 else if (icon === "🌫️" || desc.includes("mist") || desc.includes("fog")) {
-    weather_cond = -0.6 * weatherMultiplier;
+    weather_cond = -0.11 * weatherMultiplier;
 }
 
 // 3. Eksekusi ke Variabel Feel
@@ -1896,7 +1896,7 @@ if (currentIcon === "⛈️") {
 } 
 else if (currentIcon === "🌧️") {
     // HUJAN (Termasuk Nimbostratus & Satellite Detected)
-    outfit += " + Jaket waterproof / raincoat set + tas anti air";
+    outfit += " + Jas Hujan / raincoat set + tas anti air";
     activity = "Built Up Custom indoor, Gym, atau latihan taktik indoor.";
     warning = "⚠️ Jalanan licin! Hindari akselerasi mendadak dan rebah ekstrem saat riding motor custom.";
 } 
@@ -1904,13 +1904,11 @@ else if (currentIcon === "🌫️") {
     // EMBUN / KABUT (Logic Spread <= 1.5 )
     activity = "Batasi kegiatan outdoor karena jarak pandang berkurang!";
     warning = "⚠️ Cuaca berkabut! Nyalakan lampu utama motor custom , jaga jarak aman!";
-    outfit += " + Jaket Windbreaker / Leather Jacket + Buff";
 } 
 else if (currentIcon === "☁️") {
     // MENDUNG / CLOUDY
     if (feelLike >= 25 && feelLike <= 30) {
-        activity += ". Cuaca syahdu! Sangat mendukung aktivitas outdoor tanpa panas berlebih.";
-        outfit = "Kaos nyaman + Jaket ringan";
+        activity += " Cuaca syahdu! Sangat mendukung aktivitas outdoor tanpa panas berlebih.";
     }
 }
 
