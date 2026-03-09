@@ -1288,7 +1288,7 @@ let hour = new Date().getHours();
 /* ======================================================= */
 
 // 1. Persiapan Variabel Dasar
-const v_kmh = Math.max(wind || 0, gust) * 3.6;
+const v_kmh = Math.max(wind ?? 0, gust ?? 0) * 3.6;
 const normHumid = humidity / 100;
 const humStrength = Math.pow(Math.max(0, (humidity - 70) / 30), 1.5);
 const nonLinearHumidSiang = Math.pow(normHumid, 2) * 100;
@@ -1713,7 +1713,7 @@ console.log(`Feel Akhir: ${feel.toFixed(2)}°C`);
 
 else{
 
-  const v = Math.max(wind || 0, gust) * 3.6;
+  const v = Math.max(wind ?? 0, gust ?? 0) * 3.6;
 
 let windChillEffect = 0;
 
@@ -2684,8 +2684,3 @@ autoUpdateScheduler();
 
 </body>
 </html>
-
-
-
-
-
