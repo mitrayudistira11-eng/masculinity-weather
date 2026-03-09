@@ -904,7 +904,7 @@ if (curahHujan > 0.5 && curahHujan <= 1 ) {
 } else
 
 // B. LOGIKA "ATMOSPHERIC SHIELD" (Kasus UV 2 Tengah Hari)
-if (currentHour >= 11 && currentHour <= 14 && uvNow <= 2 && rawCloud > 94) {
+if (currentHour >= 11 && currentHour <= 14 && uvNow <= 2 && finalCloud > 94) {
     weatherDesc = "Mendung Syahdu (UV Shielding) 🛡️";
     // Jangan ubah icon jika sudah hujan, biarkan tetap hujan
 } else
@@ -916,7 +916,7 @@ if (rawPress < -1.0 && !mainweather.includes("rain")) {
 } else
 
 // D. VETO KELEMBAPAN & MENDUNG KERING
-if (rawHum < 50 && rawCloud > 85) {
+if (rawHum < 50 && finalCloud > 85) {
     weatherDesc = "Mendung (Udara Kering) ☁️";
     weatherIcon = "☁️";
 } else if (pemicuEmbun && rawHum > 94 && tekanan >= 1009 && curahHujan <= 0 && dewPointSpread <= 1.5 && !isRaining) {
@@ -925,7 +925,7 @@ if (rawHum < 50 && rawCloud > 85) {
 } else
 
 // E. VETO AWAN (Koreksi API Global)
-if (rawCloud > 85 && (mainweather.includes("clear") || mainweather.includes("sunny"))) {
+if (finalCloud > 85 && (mainweather.includes("clear") || mainweather.includes("sunny"))) {
     weatherDesc = "Mendung Pekat (Cloudy) ☁️";
     weatherIcon = "☁️";
 } else
@@ -2676,3 +2676,4 @@ autoUpdateScheduler();
 
 </body>
 </html>
+
