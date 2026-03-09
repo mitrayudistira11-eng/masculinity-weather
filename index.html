@@ -1200,7 +1200,7 @@ function getWindEffect(temp, humidity, wind, gust, weatherMain, pressure){
     11.37 * Math.pow(v, 0.16) +
     0.3965 * temp * Math.pow(v, 0.16);
 
-  effect = wc - temp;
+  effect -= wc - temp;
  }	 
     // Jika hasil akhir tetap NaN karena input aneh, kembalikan 0
     return isNaN(effect) ? 0 : effect;
@@ -2684,5 +2684,6 @@ autoUpdateScheduler();
 
 </body>
 </html>
+
 
 
