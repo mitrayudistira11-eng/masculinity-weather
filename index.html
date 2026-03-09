@@ -564,7 +564,7 @@ if (!isNightTime) {
     /* =========================================
        MODE MALAM (Logic Lapisan Awan)
     ========================================= */
-    if (data.clouds.all > 80 && lowMidCloud < 50) {
+    if (data.clouds.all > 80 && lowMidCloud < 70) {
         finalCloud = effectiveMeteo;
     } else {
         finalCloud = Math.max(data.clouds.all, effectiveMeteo);
@@ -1866,7 +1866,7 @@ outfit="Jaket Kulit / denim + kaos tebal + celana chinos + boots + sarung tangan
 activity="Taktikal training ringan, Memanah, atau Built Up Motor Custom.";
 }
 
-else if(feelLike >= 15){
+else if(feelLike >= 10){
 outfit="Layering: jacket tebal / mantel + celana chinos tebal + boots + sarung tangan";
 activity="Climbing dingin, perawatan motor detail, latihan taktikal.";
 }
@@ -1910,12 +1910,12 @@ else if (currentIcon === "🌧️") {
 } 
 else if (currentIcon === "🌫️") {
     // EMBUN / KABUT (Logic Spread <= 1.5 )
-    activity = "Batasi kegiatan outdoor karena jarak pandang berkurang!";
+    activity = "⚠️ Jarak pandang berkurang karena kabut!";
     warning = "⚠️ Cuaca berkabut! Nyalakan lampu utama motor custom , jaga jarak aman!";
 } 
 else if (currentIcon === "☁️") {
     // MENDUNG / CLOUDY
-    if (feelLike >= 25 && feelLike <= 30) {
+    if (feelLike >= 25 && feelLike <= 30 && outdoor > 7) {
         activity += " Cuaca syahdu! Sangat mendukung aktivitas outdoor tanpa panas berlebih.";
     }
 }
@@ -2493,7 +2493,8 @@ function calculateOutdoorScore(feelLike, currentIcon, uv, gust, visibility){
     /* ================= */
     /* ===== WIND ======= */
     /* ================= */
-    if(gust > 9) score -= 2;
+    if(gust > 14) score -= 3;
+    else if(gust > 9) score -= 2;
     else if(gust > 4) score -= 1;
 
     /* ================= */
@@ -2508,7 +2509,9 @@ function calculateOutdoorScore(feelLike, currentIcon, uv, gust, visibility){
     if(feelLike > 37) score -= 3;
     else if(feelLike > 33) score -= 2;
     else if(feelLike > 29) score -= 1;
-    else if(feelLike < 11) score -= 1;
+    else if(feelLike < 1) score -= 1;
+    else if(feelLike < 9) score -= 2;
+    else if(feelLike < 19) score -= 3;
 
     /* Clamp & Return */
     score = Math.max(1, Math.min(10, score));
