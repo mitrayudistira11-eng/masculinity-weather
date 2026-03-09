@@ -2510,8 +2510,11 @@ function calculateOutdoorScore(feelLike, currentIcon, uv, gust, visibility){
     else if(feelLike > 33) score -= 2;
     else if(feelLike > 29) score -= 1;
     else if(feelLike < 1) score -= 1;
-    else if(feelLike < 9) score -= 2;
-    else if(feelLike < 19) score -= 3;
+    else if(feelLike < -9) score -= 2;
+    else if(feelLike < -19) score -= 3;
+    else if(feelLike < -29) score -= 4;
+    else if(feelLike < -39) score -= 5;
+    else if(feelLike < -49) score -= 6;
 
     /* Clamp & Return */
     score = Math.max(1, Math.min(10, score));
