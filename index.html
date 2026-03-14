@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weather GPS Auto</title>
+<title>Masculinity Weather GPS Auto</title>
 
 <style>
 /* ================= BODY ================= */
@@ -564,7 +563,7 @@ if (!isNightTime) {
     /* =========================================
        MODE MALAM (Logic Lapisan Awan)
     ========================================= */
-    if (data.clouds.all > 80 && lowMidCloud < 70) {
+    if (data.clouds.all > 80 && lowMidCloud < 90) {
         finalCloud = effectiveMeteo;
     } else {
         finalCloud = Math.max(data.clouds.all, effectiveMeteo);
@@ -847,7 +846,6 @@ let mainweather = data.weather[0].main.toLowerCase();
 let weatherIcon = icon; // Asumsi variabel icon sudah didefinisikan sebelumnya
 const currentHour = new Date().getHours();
 const dewPointSpread = data.main.temp - dewPoint;
-const pemicuEmbun = (angin_real <= 2) || (jenis_awan === "High Cloud Night 🌙☁️") || (jenis_awan === "Thin Cloud Layer 🌤️");
 // --- START LOGIC OVERRIDE ---
 
 // 1. Tentukan Emoji Berdasarkan Kasta (finalCloud)
@@ -856,41 +854,6 @@ const pemicuEmbun = (angin_real <= 2) || (jenis_awan === "High Cloud Night 🌙�
    ======================================= */
 
 let statusDiksi;
-// Variabel weatherIcon  sudah benar, kita isi barengan di sini
-
-if (finalCloud <= 10) {
-    weatherIcon = "☀️";
-    statusDiksi = "Sebagian Besar Cerah";
-} else if (finalCloud <= 30) {
-    weatherIcon = "🌤️";
-    statusDiksi = "Sebagian Cerah";
-} else if (finalCloud <= 60) {
-    weatherIcon = "⛅";
-    statusDiksi = "Sebagian Berawan";
-} else if (finalCloud <= 85) {
-    weatherIcon = "🌥️";
-    statusDiksi = "Sebagian Besar Berawan";
-} else if (finalCloud <= 98) {
-    weatherIcon = "☁️";
-    statusDiksi = "Berawan";
-} else {
-    weatherIcon = "☁️";
-    statusDiksi = "Berawan Total";
-}
-
-// 2. Veto Terakhir (Hujan)
-if (hoedjan > 0.5) {
-    // Kalau hujan tapi awan di bawah 85%, berarti hujan panas/rintik
-    if (finalCloud < 85) {
-        weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
-        weatherIcon = "🌦️";
-    } else {
-        weatherDesc = `Hujan ${hoedjan > 1 ? "Lebat" : "Rintik"}`;
-        weatherIcon = "🌧️";
-    }
-} else {
-    weatherDesc = statusDiksi;
-}
 
 // A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik  Tadi)
 // Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
@@ -905,7 +868,7 @@ if (curahHujan > 0.5 && curahHujan <= 1 ) {
 
 // B. LOGIKA "ATMOSPHERIC SHIELD" (Kasus UV 2 Tengah Hari)
 if (currentHour >= 11 && currentHour <= 14 && uvNow <= 2 && finalCloud > 94) {
-    weatherDesc = "Mendung Syahdu (UV Shielding) 🛡️";
+    weatherDesc = "Langit Gelap di Tengah Hari";
     // Jangan ubah icon jika sudah hujan, biarkan tetap hujan
 } else
 
@@ -919,9 +882,6 @@ if (rawPress < -1.0 && !mainweather.includes("rain")) {
 if (rawHum < 50 && finalCloud > 85) {
     weatherDesc = "Mendung (Udara Kering) ☁️";
     weatherIcon = "☁️";
-} else if (pemicuEmbun && rawHum > 94 && tekanan >= 1009 && curahHujan <= 0 && dewPointSpread <= 1.5 && !isRaining) {
-    weatherDesc = "Sangat Lembap / Potensi 🌫️";
-    weatherIcon = "🌫️";
 } else
 
 // E. VETO AWAN (Koreksi API Global)
@@ -948,6 +908,45 @@ if (curahHujan > 0.4) {
 // G. KHUSUS RAMADHAN (Optional Log Only)
 if (uvNow <= 2 && currentHour > 10 && currentHour < 15) {
     console.log("Ramadhan Mode: Cuaca sangat bersahabat untuk puasa (Low UV).");
+}
+
+// Variabel weatherIcon  sudah benar, kita isi barengan di sini
+
+if (rawHum > 99 && tekanan >= 1009 && dewPointSpread <= 1.5 && !isRaining) {
+    statusDiksi = "kabut Embun 🌫️";
+    weatherIcon = "🌫️";
+} else if (finalCloud <= 10) {
+    weatherIcon = "☀️";
+    statusDiksi = "Sebagian Besar Cerah";
+} else if (finalCloud <= 30) {
+    weatherIcon = "🌤️";
+    statusDiksi = "Sebagian Cerah";
+} else if (finalCloud <= 60) {
+    weatherIcon = "⛅";
+    statusDiksi = "Sebagian Berawan";
+} else if (finalCloud <= 85) {
+    weatherIcon = "🌥️";
+    statusDiksi = "Sebagian Besar Berawan";
+} else if (finalCloud <= 98) {
+    weatherIcon = "☁️";
+    statusDiksi = "Berawan";
+}  else {
+    weatherIcon = "☁️";
+    statusDiksi = "Berawan Total";
+}
+
+// 2. Veto Terakhir (Hujan)
+if (hoedjan > 0.5) {
+    // Kalau hujan tapi awan di bawah 85%, berarti hujan panas/rintik
+    if (finalCloud < 85) {
+        weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
+        weatherIcon = "🌦️";
+    } else {
+        weatherDesc = `Hujan ${hoedjan > 1 ? "Lebat" : "Rintik"}`;
+        weatherIcon = "🌧️";
+    }
+} else {
+    weatherDesc = statusDiksi;
 }
 
 const feel = customFeelLike(
@@ -2690,4 +2689,3 @@ autoUpdateScheduler();
 
 </body>
 </html>
-
