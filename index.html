@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Masculinity Weather GPS Auto</title>
+<title>Weather GPS Auto</title>
 
 <style>
 /* ================= BODY ================= */
@@ -443,7 +444,7 @@ fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&uni
     // ===============================
     // 2️⃣ FETCH OPEN METEO
     // ===============================
-    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,dew_point_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_7cm,soil_moisture_0_to_1cm&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_7cm,soil_moisture_0_to_1cm&daily=temperature_2m_mean&past_days=7&forecast_days=1`)
+    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,dew_point_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_10cm,soil_moisture_0_to_1cm&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_10cm,soil_moisture_0_to_1cm&daily=temperature_2m_mean&past_days=7&forecast_days=1`)
     .then(res => res.json())
     .then(meteo => {
 
@@ -577,7 +578,7 @@ if (!isNightTime) {
    ======================================================= */
 const capeValue = meteoData.cape || 0;
 
-if (capeValue > 800) {
+if (capeValue > 800 && dominantCloud >= 20) {
     // Tambahkan bonus progresif: setiap 20 J/kg naik 1%
     // Contoh: CAPE 1500 -> (1500-800)/20 = +35%
     let capeBonus = (capeValue - 800) / 20;
@@ -593,7 +594,7 @@ if (capeValue > 1400 && lowMidCloud > 20) {
 // ⚠️ FINAL CLIPPING: Perlindungan terhadap "Mendung Palsu"
 // Jika awan rendah & menengah benar-benar kosong (<5%), tetap tampilkan cerah
 if (lowMidCloud < 5 && finalCloud > 40 && capeValue < 1200) {
-    finalCloud = 20; 
+    finalCloud = lowMidCloud; 
 }
 
 // Pastikan tidak tembus 100%
