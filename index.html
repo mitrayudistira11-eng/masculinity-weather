@@ -688,8 +688,11 @@ if (isNightTime) {
     /* ==========================
        🌙 NIGHT LOGIC
     ========================== */
-
-    if (chance >= 99) {
+if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+        statusText = "SIKLON TROPIS SEDANG TERJADI!!!";
+        statusColor = "#fbbf24";
+    }  
+    else if (chance >= 99) {
         statusText = "🌧️ Hujan sedang terjadi di sebagian/seluruh wilayah.";
         statusColor = "#f87171";
     } 
@@ -697,7 +700,7 @@ if (isNightTime) {
         // Meskipun belum hujan, kalau CAPE 1500 seperti tadi, ini statusnya:
         statusText = "⚡ Atmosfer labil, potensi hujan mendadak.";
         statusColor = "#fbbf24";
-    } 
+    }
     else if (humi > 95 && pressureTrend === "Stable Pressure ☁️") {
         statusText = "❄️ Udara sangat jenuh, potensi embun tebal.";
         statusColor = "#a5f3fc";
@@ -718,7 +721,11 @@ if (isNightTime) {
        ☀️ DAY LOGIC
     ========================== */
 
-    if (chance >= 99) {
+    if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+        statusText = "SIKLON TROPIS SEDANG TERJADI!!!";
+        statusColor = "#fbbf24";
+    }  
+    else if (chance >= 99) {
         statusText = "🌧️ Hujan sedang terjadi.";
         statusColor = "#f87171";
     } 
@@ -875,7 +882,7 @@ if (currentHour >= 11 && currentHour <= 14 && uvNow <= 2 && finalCloud > 94) {
 } else
 
 // C. VETO TEKANAN (Deteksi Badai / Instabilitas)
-if (rawPress < -1.0 && !mainweather.includes("rain")) {
+if (pressureTrend === "Convective Pressure Drop ⛈️" && !mainweather.includes("rain")) {
     weatherDesc = "Instabilitas Terdeteksi (Tekanan Drop) ⛈️";
     weatherIcon = "⛈️";
 } else
@@ -1124,8 +1131,8 @@ function detectPressureTrend(pressures, timeArray){
       TROPICAL CLASSIFICATION (1h & 3h Combined)
      ============================================== */
 
-  // 1. Rapid system drop (6h tetap prioritas tertinggi untuk sistem besar)
-  if(drop6h <= -5){
+  // 1. Rapid system drop (3h tetap prioritas tertinggi untuk sistem besar)
+  if(drop3h <= -5){
     return "Rapid Cyclonic Drop 🌪️";
   }
 
