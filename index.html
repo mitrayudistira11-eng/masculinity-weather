@@ -1933,7 +1933,7 @@ if (currentIcon === "⛈️") {
     warning = "⛔ Badai petir! Sangat tidak disarankan mengendarai motor custom.";
     outfit += " + Raincoat Heavy Duty + Cover Shoes";
 } 
-else if (wind < 30 && currentIcon === "🌧️") {
+else if (wind < 25 && currentIcon === "🌧️") {
     // HUJAN (Termasuk Nimbostratus & Satellite Detected)
     outfit += " + Jas Hujan / raincoat set + tas anti air";
     activity = "Built Up Custom indoor, Gym, atau latihan taktik indoor.";
@@ -1951,7 +1951,7 @@ else if (currentIcon === "☁️") {
     }
 }
 	
-if(wind >= 30 && currentIcon === "🌧️"){
+if(wind >= 25 && currentIcon === "🌧️"){
 activity= " 🌬️ ANGIN SANGAT KENCANG KARENA SIKLON TROPIS, SEGERA EVAKUASI DIRI!!!";
 }
 else if(wind > 10){
@@ -2527,9 +2527,9 @@ function calculateOutdoorScore(feelLike, currentIcon, uv, gust, visibility){
     /* ================= */
     /* ===== WIND ======= */
     /* ================= */
-    if(gust > 34) score -= 9;
-    if(gust > 14) score -= 3;
-    else if(gust > 9) score -= 2;
+    if(gust > 24) score -= 9;
+    if(gust > 14) score -= 5;
+    else if(gust > 9) score -= 3;
     else if(gust > 4) score -= 1;
 
     /* ================= */
