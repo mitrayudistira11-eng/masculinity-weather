@@ -1153,7 +1153,7 @@ function detectPressureTrend(pressures, timeArray){
      ============================================== */
 
   // 1. Rapid system drop (3h tetap prioritas tertinggi untuk sistem besar)
-  if(drop3h <= -5){
+  if(drop6h <= -6  || drop3h <= -4){
     return "Rapid Cyclonic Drop 🌪️";
   }
 
