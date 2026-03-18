@@ -1023,8 +1023,23 @@ document.getElementById("cloudType").innerText = cloudType;
 applyCloudColor(cloudType);
 
 let windStatus="Normal";
-if(wind>5) windStatus="Kencang ⚠️";
-if(wind>10) windStatus="Sangat kencang ⛔";
+if (wind > 54) {
+    windStatus = "SANGAT KENCANG, SETARA ANGIN SIKLON LEVEL 5 ⛔";
+} else if (wind > 44) {
+    windStatus = "SANGAT KENCANG, SETARA ANGIN SIKLON LEVEL 4 ⛔";
+} else if (wind > 34) {
+    windStatus = "SANGAT KENCANG, SETARA ANGIN SIKLON LEVEL 3 ⛔";
+} else if (wind > 24) {
+    windStatus = "SANGAT KENCANG, SETARA ANGIN SIKLON LEVEL 2 ⛔";
+} else if (wind > 14) {
+    windStatus = "SANGAT KENCANG, SETARA ANGIN SIKLON LEVEL 1 ⛔";
+} else if (wind > 10) {
+    windStatus = "Sangat kencang, Setara Angin Depresi Tropis ⛔";
+} else if (wind > 5) {
+    windStatus = "Kencang ⚠️";
+} else {
+    windStatus = "Angin Normal ✅";
+}
 
 document.getElementById("extra").innerHTML=`
 <b>Angin:</b> ${angin} Km/h (${windStatus})<br>
@@ -1933,7 +1948,7 @@ if (currentIcon === "⛈️") {
     warning = "⛔ Badai petir! Sangat tidak disarankan mengendarai motor custom.";
     outfit += " + Raincoat Heavy Duty + Cover Shoes";
 } 
-else if (wind < 25 && currentIcon === "🌧️") {
+else if (currentIcon === "🌧️") {
     // HUJAN (Termasuk Nimbostratus & Satellite Detected)
     outfit += " + Jas Hujan / raincoat set + tas anti air";
     activity = "Built Up Custom indoor, Gym, atau latihan taktik indoor.";
@@ -1950,11 +1965,8 @@ else if (currentIcon === "☁️") {
         activity += " Cuaca syahdu! Sangat mendukung aktivitas outdoor tanpa panas berlebih.";
     }
 }
-	
-if(wind >= 25 && currentIcon === "🌧️"){
-activity= " 🌬️ ANGIN SANGAT KENCANG KARENA SIKLON TROPIS, SEGERA EVAKUASI DIRI!!!";
-}
-else if(wind > 10){
+
+if(wind > 10){
 warning += " 🌬️ Angin cukup kencang, waspadai crosswind saat riding.";
 }
 
@@ -2527,9 +2539,9 @@ function calculateOutdoorScore(feelLike, currentIcon, uv, gust, visibility){
     /* ================= */
     /* ===== WIND ======= */
     /* ================= */
-    if(gust > 24) score -= 9;
-    if(gust > 14) score -= 5;
-    else if(gust > 9) score -= 3;
+    if(gust > 34) score -= 9;
+    if(gust > 14) score -= 3;
+    else if(gust > 9) score -= 2;
     else if(gust > 4) score -= 1;
 
     /* ================= */
