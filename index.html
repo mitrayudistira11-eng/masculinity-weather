@@ -1609,7 +1609,7 @@ radiationStrength = Math.min(1.1, radiationStrength);
 
 // 4. Kalkulasi Final
 let solarFactor = 
-    radiationStrength * timeWeight * uvModifier * cloudModifier * 3.8; // Saya naikkan sedikit ke 3.8 karena tadi cloudModifier sudah memotong nilai
+    radiationStrength * timeWeight * uvModifier * cloudModifier * 7;
 
     console.log(`Solar Factor: ${solarFactor.toFixed(2)}°C`);
 
