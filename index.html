@@ -690,7 +690,7 @@ if (isNightTime) {
     ========================== */
 if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
         statusText = "SIKLON TROPIS SEDANG TERJADI!!!";
-        statusColor = "#fbbf24";
+        statusColor = "#f87171";
     }  
     else if (chance >= 99) {
         statusText = "🌧️ Hujan sedang terjadi di sebagian/seluruh wilayah.";
@@ -1062,15 +1062,21 @@ else if (weatherIcon === "🌫️") {
     // Menggunakan data visibilitas olahan kita
     warning = `⚠️ Embun/Kabut! Jarak pandang terbatas. Gunakan lampu utama!`;
 }
+else if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+    warning = `⛔ Siklon Tropis! Sangat berbahaya, jangan riding!`;
+}
 
 if(visibility<5){
 warning+=" ⚠️ Jarak pandang rendah! Gunakan lampu & jaga jarak.";
 }
 
+if(wind>30){
+warning+=" HENTIKAN PERJALANAN HARI INI!!!.";
+}
+
 if(wind>10){
 warning+=" ⚠️ Waspadai crosswind saat riding.";
 }
-
 
 if(outdoorScore < 4){
 warning="⛔ Tidak disarankan riding motor custom!!!";
@@ -1927,7 +1933,7 @@ if (currentIcon === "⛈️") {
     warning = "⛔ Badai petir! Sangat tidak disarankan mengendarai motor custom.";
     outfit += " + Raincoat Heavy Duty + Cover Shoes";
 } 
-else if (currentIcon === "🌧️") {
+else if (wind < 30 && currentIcon === "🌧️") {
     // HUJAN (Termasuk Nimbostratus & Satellite Detected)
     outfit += " + Jas Hujan / raincoat set + tas anti air";
     activity = "Built Up Custom indoor, Gym, atau latihan taktik indoor.";
@@ -1944,8 +1950,11 @@ else if (currentIcon === "☁️") {
         activity += " Cuaca syahdu! Sangat mendukung aktivitas outdoor tanpa panas berlebih.";
     }
 }
-
-if(wind > 10){
+	
+if(wind >= 30 && currentIcon === "🌧️"){
+activity= " 🌬️ ANGIN SANGAT KENCANG KARENA SIKLON TROPIS, SEGERA EVAKUASI DIRI!!!";
+}
+else if(wind > 10){
 warning += " 🌬️ Angin cukup kencang, waspadai crosswind saat riding.";
 }
 
@@ -2518,6 +2527,7 @@ function calculateOutdoorScore(feelLike, currentIcon, uv, gust, visibility){
     /* ================= */
     /* ===== WIND ======= */
     /* ================= */
+    if(gust > 34) score -= 9;
     if(gust > 14) score -= 3;
     else if(gust > 9) score -= 2;
     else if(gust > 4) score -= 1;
