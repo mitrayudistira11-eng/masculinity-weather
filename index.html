@@ -444,7 +444,7 @@ fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&uni
     // ===============================
     // 2️⃣ FETCH OPEN METEO
     // ===============================
-    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,dew_point_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_10cm,soil_moisture_0_to_1cm&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_10cm,soil_moisture_0_to_1cm&daily=temperature_2m_mean&past_days=7`)
+    return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,dew_point_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_10cm,soil_moisture_0_to_1cm&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_10cm,soil_moisture_0_to_1cm&daily=temperature_2m_mean&past_days=7&forecast_days=1`)
     .then(res => res.json())
     .then(meteo => {
 
@@ -467,6 +467,7 @@ fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&uni
 //Cek Update Data API
 
 const pressures = meteoData_record.pressure_msl || [];
+const timeArray = meteoData_record.time || [];
 
 // 1. Waktu Lokal Browser
     const localTime = new Date().toLocaleTimeString('id-ID');
@@ -519,7 +520,7 @@ if (server2Time !== "N/A") {
     }
     console.log("======================================");
 
-const pressureTrend = detectPressureTrend(pressures);
+const pressureTrend = detectPressureTrend(pressures, timeArray);
 
 console.log("Pressure Trend:", pressureTrend);
 
@@ -1076,27 +1077,44 @@ document.getElementById("warning").innerHTML="<b>Safety Riding:</b><br>"+warning
 });
 }
 
-function detectPressureTrend(pressures){
-const now = new Date();
-const currentHour = now.getHours();
+function detectPressureTrend(pressures, timeArray){
+// 1. Dapatkan waktu sekarang dalam format ISO UTC (YYYY-MM-DDTHH:00)
+  // Kita potong string-nya supaya pas dengan format API: "2026-03-18T04:00"
+  const now = new Date();
+  const isoNow = now.toISOString().substring(0, 13) + ":00";
 
-  if(!pressures || pressures.length < 7){
-    return "Data Tidak Cukup";
+  // 2. Cari indeks jam sekarang di dalam array time
+  const currentIndex = timeArray.indexOf(isoNow);
+
+  if (currentIndex === -1) {
+    return `Waktu ${isoNow} tidak ditemukan dalam array.`;
   }
 
-  const currentIndex = pressures.length - 1; 
-
+  // 3. Ambil data histori berdasarkan currentIndex
+  // Pastikan histori tidak melompat ke luar batas array (min index 0)
   const sekarang = pressures[currentIndex];
-  const threeHoursAgo = pressures[currentIndex - 3];
-  const sixHoursAgo = pressures[currentIndex - 6];
+  const oneHourAgo   = currentIndex >= 1 ? pressures[currentIndex - 1] : null;
+  const threeHoursAgo = currentIndex >= 3 ? pressures[currentIndex - 3] : null;
+  const sixHoursAgo   = currentIndex >= 6 ? pressures[currentIndex - 6] : null;
 
+  if (sixHoursAgo === null) {
+    return "Data histori belum cukup (masih di awal array).";
+  }
+
+  // 4. Hitung Delta
+  const drop1h = sekarang - oneHourAgo;
   const drop3h = sekarang - threeHoursAgo;
   const drop6h = sekarang - sixHoursAgo;
-  const drop1h = sekarang - pressures[currentIndex - 1];
 
-  console.log("Pressure 1h change:", drop1h);
-  console.log("Pressure 3h change:", drop3h);
-  console.log("Pressure 6h change:", drop6h);
+  console.log(`--- 🛰️ Time Sync Success ---`);
+  console.log("Local Time:", now.toString());
+  console.log("UTC Search Key:", isoNow);
+  console.log("Found at Index:", currentIndex);
+  console.log("----------------------------");
+  console.log("Pressure Current:", sekarang.toFixed(1), "hPa");
+  console.log("1h Change:", drop1h.toFixed(2));
+  console.log("3h Change:", drop3h.toFixed(2));
+  console.log("6h Change:", drop6h.toFixed(2));
 
   /* =============================
      TROPICAL CLASSIFICATION
