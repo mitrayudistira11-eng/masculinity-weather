@@ -905,7 +905,7 @@ if (rawHum < 75 && hujan_OWM > 0 && hujan_OWM <= 0.2) {
 }
 
 // F. VETO SATELIT (Real-time Precipitation)
-if (curahHujan > 0.4) {
+if (curahHujan > 0.4 && !pressureTrend === "Rapid Cyclonic Drop 🌪️") {
     weatherDesc = "Hujan (Detected by Satellite) 🌧️";
     weatherIcon = "🌧️";
     if (curahHujan > 2) {
@@ -951,7 +951,7 @@ if (hoedjan > 0.5) {
         weatherIcon = "🌦️";
     } 
 if (tekanan < 1001) {
-    weatherDesc = "Badai Siklon Tropis 🌪️";
+    weatherDesc = `Badai Siklon Tropis 🌪️`;
     weatherIcon = "⛈️";
 }
  else {
