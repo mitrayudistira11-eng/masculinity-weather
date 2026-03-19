@@ -1036,7 +1036,9 @@ if (wind > 54) {
 } else if (wind > 10) {
     windStatus = "Sangat kencang, Setara Angin Depresi Tropis ⛔";
 } else if (wind > 5) {
-    windStatus = "Kencang ⚠️";
+    windStatus = "Angin kencang ⚠️";
+} else if (wind <= 5 && tekanan < 990) {
+    windStatus = "Angin Pusat Siklon (Mata Badai) ⛔";
 } else {
     windStatus = "Angin Normal ✅";
 }
