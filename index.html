@@ -1246,7 +1246,7 @@ function detectPressureTrend(pressures, timeArray){
 
   // 5. Rising pressure from tropical storm (clearing sky)
   // Jika kenaikan 3 jam signifikan, langit biasanya terbuka
-  if(drop1h >= 2 && forecastDrop3h >= 3){
+  if((drop1h >= 2 ||drop3h >= 4) && forecastDrop3h >= 3){
     return "Badai Menjauh 🌤️";
   }
 
