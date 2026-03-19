@@ -1205,7 +1205,7 @@ function detectPressureTrend(pressures, timeArray){
      ============================================== */
 
   // 🚨 KONDISI KRITIS: Forecast menunjukkan tekanan terjun bebas ke inti badai
-  if (forecastDrop3h <= -3 && f3h < 995) {
+  if (forecastDrop3h <= -3 && f3h < 990) {
     return "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)";
   }
 
@@ -1224,7 +1224,7 @@ function detectPressureTrend(pressures, timeArray){
      ============================================== */
 
   // 1. Rapid system drop (3h tetap prioritas tertinggi untuk sistem besar)
-  if((drop6h <= -6  || drop3h <= -3) && sekarang < 1000){
+  if((drop6h <= -6  || drop3h <= -3) && sekarang < 1001){
     return "Rapid Cyclonic Drop 🌪️";
   }
 
