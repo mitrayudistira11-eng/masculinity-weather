@@ -721,9 +721,17 @@ if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
        ☀️ DAY LOGIC
     ========================== */
 
-    if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
-        statusText = "SIKLON TROPIS SEDANG TERJADI!!!";
+    if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)") {
+        statusText = "⚠️ WASPADA, SIKLON TROPIS SEDANG MENUJU KE DAERAH ANDA!!!";
         statusColor = "#fbbf24";
+    } 
+    else if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
+        statusText = "BAHAYA, INTI BADAI MENDEKATI DAERAH ANDA!!!";
+        statusColor = "#f87171";
+    } 
+    else if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+        statusText = "SIKLON TROPIS SEDANG TERJADI!!!";
+        statusColor = "#f87171";
     }  
     else if (chance >= 99) {
         statusText = "🌧️ Hujan sedang terjadi.";
@@ -1131,6 +1139,14 @@ function detectPressureTrend(pressures, timeArray){
   const threeHoursAgo = currentIndex >= 3 ? pressures[currentIndex - 3] : null;
   const sixHoursAgo   = currentIndex >= 6 ? pressures[currentIndex - 6] : null;
 
+// --- 2. DATA FORECAST (Masa Depan) ---
+  // Kita intip 3 jam dan 6 jam ke depan dari sekarang
+  const f3h = pressures[currentIndex + 3] || sekarang; 
+  const f6h = pressures[currentIndex + 6] || sekarang;
+
+  const forecastDrop3h = f3h - sekarang; // Prediksi perubahan 3 jam ke depan
+  const forecastDrop6h = f6h - sekarang; // Prediksi perubahan 6 jam ke depan
+
   if (sixHoursAgo === null) {
     return "Data histori belum cukup (masih di awal array).";
   }
@@ -1149,10 +1165,27 @@ function detectPressureTrend(pressures, timeArray){
   console.log("1h Change:", drop1h.toFixed(2));
   console.log("3h Change:", drop3h.toFixed(2));
   console.log("6h Change:", drop6h.toFixed(2));
+  console.log("3h Change FORECAST:", forecastDrop3h.toFixed(2));
+  console.log("6h Change FORECAST:", forecastDrop6h.toFixed(2));
 
-  /* =============================
-     TROPICAL CLASSIFICATION
-  ============================== */
+/* ==============================================
+      EARLY WARNING LOGIC (FORECAST BASED)
+     ============================================== */
+
+  // 🚨 KONDISI KRITIS: Forecast menunjukkan tekanan terjun bebas ke inti badai
+  if (forecastDrop3h <= -3 || f3h < 995) {
+    return "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)";
+  }
+
+  // 🌪️ DETEKSI DINI: Belum badai sekarang, tapi forecast menunjukkan tanda siklon
+  if (forecastDrop6h <= -6 || (sekarang > 1000 && f6h <= 998)) {
+    return "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)";
+  }
+
+  // ⛈️ TREND BURUK: Tekanan diprediksi terus menurun
+  if (forecastDrop3h < -1.5) {
+    return "⛈️ ALERT: Deteriorating Weather (Cuaca Akan Memburuk)";
+  }
 
 /* ==============================================
       TROPICAL CLASSIFICATION (1h & 3h Combined)
