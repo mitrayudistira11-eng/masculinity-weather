@@ -689,7 +689,7 @@ if (isNightTime) {
        🌙 NIGHT LOGIC
     ========================== */
 
-    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)" && data.wind.speed < 9) {
+    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
         statusText = "⚠️ ANDA TELAH BERADA DI PUSAT INTI BADAI!!! ⛔";
         statusColor = "#f87171";
     }
@@ -697,7 +697,7 @@ if (isNightTime) {
         statusText = "⚠️ WASPADA, SIKLON TROPIS SEDANG MENUJU KE DAERAH ANDA!!!";
         statusColor = "#fbbf24";
     } 
-    else if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
+    else if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)" && data.wind.speed > 9) {
         statusText = "⚠️ BAHAYA, INTI BADAI MENDEKATI DAERAH ANDA!!!";
         statusColor = "#f87171";
     } 
@@ -734,7 +734,7 @@ if (isNightTime) {
        ☀️ DAY LOGIC
     ========================== */
 
-    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)" && data.wind.speed < 9) {
+    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
         statusText = "⚠️ ANDA TELAH BERADA DI PUSAT INTI BADAI!!! ⛔";
         statusColor = "#f87171";
     }
@@ -743,7 +743,7 @@ if (isNightTime) {
         statusColor = "#fbbf24";
     } 
 
-    else if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
+    else if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)" && data.wind.speed > 9) {
         statusText = "BAHAYA, INTI BADAI MENDEKATI DAERAH ANDA!!!";
         statusColor = "#f87171";
     } 
