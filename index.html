@@ -1110,6 +1110,7 @@ recommendation(
 /* ===== RIDING WARNING ===== */
 
 let warning = "✅ Kondisi aman untuk riding motor custom.";
+let siklon = (pressureTrend === "Rapid Cyclonic Drop 🌪️" || pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)" || pressureTrend === "Badai Menjauh 🌤️");
 
 if(outdoorScore < 4){
 warning="⛔ Tidak disarankan riding motor custom!!!";
@@ -1122,7 +1123,7 @@ warning+=" ⚠️ Jarak pandang rendah! Gunakan lampu & jaga jarak.";
 }
 
 // 1. Veto Berdasarkan Ikon (Kondisi Cuaca Utama)
-if (weatherIcon === "⛈️" && !pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+if (weatherIcon === "⛈️" && !siklon) {
     warning = "⛔ Badai petir! Sangat berbahaya, jangan riding!";
 } 
 else if (weatherIcon === "🌧️") {
@@ -1132,15 +1133,15 @@ else if (weatherIcon === "🌫️") {
     // Menggunakan data visibilitas olahan kita
     warning = `⚠️ Embun/Kabut! Jarak pandang terbatas. Gunakan lampu utama!`;
 }
-else if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+else if (siklon) {
     warning = `⛔ Siklon Tropis! Sangat berbahaya, jangan riding!`;
 }
 
-if(wind>=30){
+if(wind>=14){
 warning+=" HENTIKAN PERJALANAN HARI INI!!!.";
 }
 
-if(wind>10 && wind<30){
+if(wind>10 && wind<14){
 warning+=" ⚠️ Waspadai crosswind saat riding.";
 }
 
