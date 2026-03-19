@@ -1205,12 +1205,12 @@ function detectPressureTrend(pressures, timeArray){
      ============================================== */
 
   // 🚨 KONDISI KRITIS: Forecast menunjukkan tekanan terjun bebas ke inti badai
-  if (forecastDrop3h <= -3 || f3h < 995) {
+  if (forecastDrop3h <= -3 && f3h < 995) {
     return "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)";
   }
 
   // 🌪️ DETEKSI DINI: Belum badai sekarang, tapi forecast menunjukkan tanda siklon
-  if (forecastDrop6h <= -6 || (sekarang > 1000 && f6h <= 998)) {
+  if (forecastDrop6h <= -6 || drop6h <= -6  || drop3h <= -3 || (sekarang > 1000 && f6h <= 998)) {
     return "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)";
   }
 
@@ -1224,7 +1224,7 @@ function detectPressureTrend(pressures, timeArray){
      ============================================== */
 
   // 1. Rapid system drop (3h tetap prioritas tertinggi untuk sistem besar)
-  if(drop6h <= -6  || drop3h <= -3){
+  if((drop6h <= -6  || drop3h <= -3) && sekarang < 1000){
     return "Rapid Cyclonic Drop 🌪️";
   }
 
