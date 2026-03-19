@@ -1225,8 +1225,14 @@ function detectPressureTrend(pressures, timeArray){
 
   // 2. Strong convective signal (Diperkuat dengan deteksi cepat 1 jam)
   // Menangkap badai lokal lebih cepat jika drop 1h tajam ATAU total 3h sudah tembus -3
-  if(drop1h <= -1.1 || drop3h <= -2.5){
+  if((drop1h <= -1.1 || drop3h <= -2.5) && sekarang > 1004){
     return "Convective Pressure Drop ⛈️";
+  }
+
+  // 2. Strong convective signal (Diperkuat dengan deteksi cepat 1 jam)
+  // Menangkap badai lokal lebih cepat jika drop 1h tajam ATAU total 3h sudah tembus -3
+  if((drop1h <= -1.1 || drop3h <= -2.5) && sekarang <= 1004){
+    return "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)";
   }
 
   // ⛈️ TREND BURUK: Tekanan diprediksi terus menurun
