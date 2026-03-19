@@ -865,12 +865,7 @@ const dewPointSpread = data.main.temp - dewPoint;
 let statusDiksi;
 
 // A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik  Tadi)
-// Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
-if (pressureTrend === "Rapid Cyclonic Drop 🌪️" || tekanan < 1001) {
-    weatherDesc = "Badai Siklon Tropis 🌪️";
-    weatherIcon = "⛈️";
-} else
-
+// Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas
 if (curahHujan > 0 && curahHujan <= 1 && hoedjan > 1.5) {
     weatherDesc = "Hujan";
     weatherIcon = "🌧️";
@@ -925,8 +920,10 @@ if (uvNow <= 2 && currentHour > 10 && currentHour < 15) {
 }
 
 // Variabel weatherIcon  sudah benar, kita isi barengan di sini
-
-if (rawHum > 99 && tekanan >= 1009 && dewPointSpread <= 1.5 && !isRaining) {
+if (pressureTrend === "Rapid Cyclonic Drop 🌪️" || tekanan < 1001) {
+    statusDiksi = "Badai Siklon Tropis 🌪️";
+    weatherIcon = "⛈️";
+} else if (rawHum > 99 && tekanan >= 1009 && dewPointSpread <= 1.5 && !isRaining) {
     statusDiksi = "kabut Embun 🌫️";
     weatherIcon = "🌫️";
 } else if (finalCloud <= 10) {
