@@ -689,7 +689,7 @@ if (isNightTime) {
        🌙 NIGHT LOGIC
     ========================== */
 
-    if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)" && data.wind.speed < 9) {
+    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)" && data.wind.speed < 9) {
         statusText = "⚠️ ANDA TELAH BERADA DI PUSAT INTI BADAI!!! ⛔";
         statusColor = "#f87171";
     }
@@ -734,7 +734,7 @@ if (isNightTime) {
        ☀️ DAY LOGIC
     ========================== */
 
-    if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)" && data.wind.speed < 9) {
+    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)" && data.wind.speed < 9) {
         statusText = "⚠️ ANDA TELAH BERADA DI PUSAT INTI BADAI!!! ⛔";
         statusColor = "#f87171";
     }
