@@ -920,10 +920,7 @@ if (uvNow <= 2 && currentHour > 10 && currentHour < 15) {
 }
 
 // Variabel weatherIcon  sudah benar, kita isi barengan di sini
-if (pressureTrend === "Rapid Cyclonic Drop 🌪️" || tekanan < 1001) {
-    statusDiksi = "Badai Siklon Tropis 🌪️";
-    weatherIcon = "⛈️";
-} else if (rawHum > 99 && tekanan >= 1009 && dewPointSpread <= 1.5 && !isRaining) {
+if (rawHum > 99 && tekanan >= 1009 && dewPointSpread <= 1.5 && !isRaining) {
     statusDiksi = "kabut Embun 🌫️";
     weatherIcon = "🌫️";
 } else if (finalCloud <= 10) {
@@ -947,12 +944,16 @@ if (pressureTrend === "Rapid Cyclonic Drop 🌪️" || tekanan < 1001) {
 }
 
 // 2. Veto Terakhir (Hujan)
-if (hoedjan > 0.5 && !pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+if (hoedjan > 0.5) {
     // Kalau hujan tapi awan di bawah 85%, berarti hujan panas/rintik
-    if (finalCloud < 85) {
+    if (finalCloud < 70) {
         weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
         weatherIcon = "🌦️";
-    } else {
+    } if (pressureTrend === "Rapid Cyclonic Drop 🌪️" || tekanan < 1001) {
+    statusDiksi = "Badai Siklon Tropis 🌪️";
+    weatherIcon = "⛈️";
+}
+ else {
         weatherDesc = `Hujan ${hoedjan > 1 ? "Lebat" : "Rintik"}`;
         weatherIcon = "🌧️";
     }
