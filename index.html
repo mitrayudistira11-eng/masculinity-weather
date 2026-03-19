@@ -707,6 +707,10 @@ if (isNightTime) {
         statusText = "SIKLON TROPIS SEDANG TERJADI!!!";
         statusColor = "#f87171";
     }
+    else if (pressureTrend === "Badai Menjauh 🌤️") {
+        statusText = "SIKLON TROPIS TELAH MELEWATI DAN MENJAUHI DAERAH ANDA!!!";
+        statusColor = "#fbbf24";
+    }
     else if (chance >= 99) {
         statusText = "🌧️ Hujan sedang terjadi di sebagian/seluruh wilayah.";
         statusColor = "#f87171";
@@ -753,6 +757,10 @@ if (isNightTime) {
         statusText = "SIKLON TROPIS SEDANG TERJADI!!!";
         statusColor = "#f87171";
     }  
+    else if (pressureTrend === "Badai Menjauh 🌤️") {
+        statusText = "SIKLON TROPIS TELAH MELEWATI DAN MENJAUHI DAERAH ANDA!!!";
+        statusColor = "#fbbf24";
+    }
     else if (chance >= 99) {
         statusText = "🌧️ Hujan sedang terjadi.";
         statusColor = "#f87171";
@@ -1234,6 +1242,12 @@ function detectPressureTrend(pressures, timeArray){
   // 4. Normal diurnal oscillation (Rise)
   if(drop3h < 3 && drop3h >= 1.5){
     return "Diurnal Pressure Rise 🌅";
+  }
+
+  // 5. Rising pressure from tropical storm (clearing sky)
+  // Jika kenaikan 3 jam signifikan, langit biasanya terbuka
+  if(drop1h >= 2 && forecastDrop3h >= 3){
+    return "Badai Menjauh 🌤️";
   }
 
   // 5. Rising pressure (clearing sky)
