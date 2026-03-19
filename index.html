@@ -866,6 +866,11 @@ let statusDiksi;
 
 // A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik  Tadi)
 // Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
+if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+    weatherDesc = "Badai Siklon Tropis 🌪️";
+    weatherIcon = "⛈️";
+} else
+
 if (curahHujan > 0 && curahHujan <= 1 && hoedjan > 1.5) {
     weatherDesc = "Hujan";
     weatherIcon = "🌧️";
@@ -1155,13 +1160,13 @@ function detectPressureTrend(pressures, timeArray){
      ============================================== */
 
   // 1. Rapid system drop (3h tetap prioritas tertinggi untuk sistem besar)
-  if(drop6h <= -6  || drop3h <= -4){
+  if(drop6h <= -6  || drop3h <= -3){
     return "Rapid Cyclonic Drop 🌪️";
   }
 
   // 2. Strong convective signal (Diperkuat dengan deteksi cepat 1 jam)
   // Menangkap badai lokal lebih cepat jika drop 1h tajam ATAU total 3h sudah tembus -3
-  if(drop1h <= -1.1 || drop3h <= -3){
+  if(drop1h <= -1.1 || drop3h <= -2.5){
     return "Convective Pressure Drop ⛈️";
   }
 
