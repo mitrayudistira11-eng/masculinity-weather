@@ -1214,11 +1214,6 @@ function detectPressureTrend(pressures, timeArray){
     return "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)";
   }
 
-  // ⛈️ TREND BURUK: Tekanan diprediksi terus menurun
-  if (forecastDrop3h < -1.5) {
-    return "⛈️ ALERT: Deteriorating Weather (Cuaca Akan Memburuk)";
-  }
-
 /* ==============================================
       TROPICAL CLASSIFICATION (1h & 3h Combined)
      ============================================== */
@@ -1232,6 +1227,11 @@ function detectPressureTrend(pressures, timeArray){
   // Menangkap badai lokal lebih cepat jika drop 1h tajam ATAU total 3h sudah tembus -3
   if(drop1h <= -1.1 || drop3h <= -2.5){
     return "Convective Pressure Drop ⛈️";
+  }
+
+  // ⛈️ TREND BURUK: Tekanan diprediksi terus menurun
+  if (forecastDrop3h < -1.5) {
+    return "⛈️ ALERT: Deteriorating Weather (Cuaca Akan Memburuk)";
   }
 
   // 3. Normal diurnal oscillation (Drop)
