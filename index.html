@@ -1210,7 +1210,7 @@ function detectPressureTrend(pressures, timeArray){
   }
 
   // 🌪️ DETEKSI DINI: Belum badai sekarang, tapi forecast menunjukkan tanda siklon
-  if (forecastDrop6h <= -6 || drop6h <= -6  || drop3h <= -3 || (sekarang > 1000 && f6h <= 998)) {
+  if ((forecastDrop6h <= -6 || drop6h <= -6  || drop3h <= -3) && (sekarang > 1000 || f6h <= 998)) {
     return "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)";
   }
 
