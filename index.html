@@ -1097,11 +1097,11 @@ else if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
     warning = `⛔ Siklon Tropis! Sangat berbahaya, jangan riding!`;
 }
 
-if(wind>30){
+if(wind>=30){
 warning+=" HENTIKAN PERJALANAN HARI INI!!!.";
 }
 
-if(wind>10){
+if(wind>10 && wind<30){
 warning+=" ⚠️ Waspadai crosswind saat riding.";
 }
 
@@ -1973,11 +1973,11 @@ else if (currentIcon === "🌫️") {
 else if (currentIcon === "☁️") {
     // MENDUNG / CLOUDY
     if (feelLike >= 25 && feelLike <= 30 && outdoor > 7) {
-        activity += " Cuaca syahdu! Sangat mendukung aktivitas outdoor tanpa panas berlebih.";
+        activity += " Cuaca berawan! Sangat mendukung aktivitas outdoor tanpa panas berlebih.";
     }
 }
 
-if(wind > 10){
+if(wind > 7 && wind < 15){
 warning += " 🌬️ Angin cukup kencang, waspadai crosswind saat riding.";
 }
 
