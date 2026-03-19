@@ -688,12 +688,17 @@ if (isNightTime) {
     /* ==========================
        🌙 NIGHT LOGIC
     ========================== */
-    if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)") {
+
+    if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)" && data.wind.speed < 9) {
+        statusText = "⚠️ ANDA TELAH BERADA DI PUSAT INTI BADAI!!! ⛔";
+        statusColor = "#f87171";
+    }
+   else if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)") {
         statusText = "⚠️ WASPADA, SIKLON TROPIS SEDANG MENUJU KE DAERAH ANDA!!!";
         statusColor = "#fbbf24";
     } 
     else if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
-        statusText = "BAHAYA, INTI BADAI MENDEKATI DAERAH ANDA!!!";
+        statusText = "⚠️ BAHAYA, INTI BADAI MENDEKATI DAERAH ANDA!!!";
         statusColor = "#f87171";
     } 
     else if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
@@ -729,10 +734,15 @@ if (isNightTime) {
        ☀️ DAY LOGIC
     ========================== */
 
-    if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)") {
+    if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)" && data.wind.speed < 9) {
+        statusText = "⚠️ ANDA TELAH BERADA DI PUSAT INTI BADAI!!! ⛔";
+        statusColor = "#f87171";
+    }
+   else if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)") {
         statusText = "⚠️ WASPADA, SIKLON TROPIS SEDANG MENUJU KE DAERAH ANDA!!!";
         statusColor = "#fbbf24";
     } 
+
     else if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
         statusText = "BAHAYA, INTI BADAI MENDEKATI DAERAH ANDA!!!";
         statusColor = "#f87171";
