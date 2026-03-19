@@ -688,10 +688,18 @@ if (isNightTime) {
     /* ==========================
        🌙 NIGHT LOGIC
     ========================== */
-if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+    if (pressureTrend === "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)") {
+        statusText = "⚠️ WASPADA, SIKLON TROPIS SEDANG MENUJU KE DAERAH ANDA!!!";
+        statusColor = "#fbbf24";
+    } 
+    else if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
+        statusText = "BAHAYA, INTI BADAI MENDEKATI DAERAH ANDA!!!";
+        statusColor = "#f87171";
+    } 
+    else if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
         statusText = "SIKLON TROPIS SEDANG TERJADI!!!";
         statusColor = "#f87171";
-    }  
+    }
     else if (chance >= 99) {
         statusText = "🌧️ Hujan sedang terjadi di sebagian/seluruh wilayah.";
         statusColor = "#f87171";
