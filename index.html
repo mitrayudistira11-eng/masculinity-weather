@@ -565,7 +565,9 @@ if (!isNightTime) {
     /* =========================================
        MODE MALAM (Logic Lapisan Awan)
     ========================================= */
-    if (data.clouds.all > 80 && lowMidCloud < 90) {
+    if (data.clouds.all > 80 && lowMidCloud < 10) {
+        finalCloud = dominantCloud;
+    } else if (data.clouds.all > 80 && lowMidCloud < 90) {
         finalCloud = effectiveMeteo;
     } else {
         finalCloud = Math.max(data.clouds.all, effectiveMeteo);
@@ -950,6 +952,9 @@ if (rawHum > 99 && tekanan >= 1009 && dewPointSpread <= 1.5 && !isRaining) {
     statusDiksi = "kabut Embun 🌫️";
     weatherIcon = "🌫️";
 } else if (finalCloud <= 10) {
+    weatherIcon = "☀️";
+    statusDiksi = "Cerah";
+} else if (finalCloud <= 20) {
     weatherIcon = "☀️";
     statusDiksi = "Sebagian Besar Cerah";
 } else if (finalCloud <= 30) {
