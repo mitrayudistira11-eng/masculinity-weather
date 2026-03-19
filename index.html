@@ -689,7 +689,7 @@ if (isNightTime) {
        🌙 NIGHT LOGIC
     ========================== */
 
-    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
+    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)" && data.wind.speed <= 9) {
         statusText = "⚠️ ANDA TELAH BERADA DI PUSAT INTI BADAI!!! ⛔";
         statusColor = "#f87171";
     }
@@ -709,12 +709,12 @@ if (isNightTime) {
         statusText = "🌧️ Hujan sedang terjadi di sebagian/seluruh wilayah.";
         statusColor = "#f87171";
     } 
-    else if (pressureTrend === "Convective Pressure Drop ⛈️" || cape > 900) {
+    else if (pressureTrend === "Convective Pressure Drop ⛈️" || cape > 1200) {
         // Meskipun belum hujan, kalau CAPE 1500 seperti tadi, ini statusnya:
         statusText = "⚡ Atmosfer labil, potensi hujan mendadak.";
         statusColor = "#fbbf24";
     }
-    else if (humi > 95 && pressureTrend === "Stable Pressure ☁️") {
+    else if (humi > 98 && pressureTrend === "Stable Pressure ☁️") {
         statusText = "❄️ Udara sangat jenuh, potensi embun tebal.";
         statusColor = "#a5f3fc";
     } 
@@ -734,7 +734,7 @@ if (isNightTime) {
        ☀️ DAY LOGIC
     ========================== */
 
-    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)") {
+    if (pressureTrend === "🚨 EMERGENCY: Cyclone Landfall Imminent! (Inti Badai Mendekat)" && data.wind.speed <= 9) {
         statusText = "⚠️ ANDA TELAH BERADA DI PUSAT INTI BADAI!!! ⛔";
         statusColor = "#f87171";
     }
