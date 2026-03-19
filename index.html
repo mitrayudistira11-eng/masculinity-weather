@@ -949,8 +949,9 @@ if (hoedjan > 0.5) {
     if (finalCloud < 70) {
         weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
         weatherIcon = "🌦️";
-    } if (pressureTrend === "Rapid Cyclonic Drop 🌪️" || tekanan < 1001) {
-    statusDiksi = "Badai Siklon Tropis 🌪️";
+    } 
+if (tekanan < 1001) {
+    weatherDesc = "Badai Siklon Tropis 🌪️";
     weatherIcon = "⛈️";
 }
  else {
