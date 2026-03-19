@@ -866,7 +866,7 @@ let statusDiksi;
 
 // A. LOGIKA "COMPRESSION DRIZZLE" (Kasus Spesifik  Tadi)
 // Jika tekanan naik tapi langit jenuh, ini bukan cerah, tapi awan diperas.
-if (pressureTrend === "Rapid Cyclonic Drop 🌪️") {
+if (pressureTrend === "Rapid Cyclonic Drop 🌪️" || tekanan < 1001) {
     weatherDesc = "Badai Siklon Tropis 🌪️";
     weatherIcon = "⛈️";
 } else
