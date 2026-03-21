@@ -1210,7 +1210,7 @@ function detectPressureTrend(pressures, timeArray){
   }
 
   // 🌪️ DETEKSI DINI: Belum badai sekarang, tapi forecast menunjukkan tanda siklon
-  if ((forecastDrop6h <= -6 || drop6h <= -6  || drop3h <= -3) && (sekarang > 1000 && sekarang < 1005)) {
+  if ((forecastDrop6h <= -6 || drop1h <= -1.1 || drop6h <= -6  || drop3h <= -3) && (sekarang > 1000 && sekarang < 1005)) {
     return "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)";
   }
 
@@ -1229,14 +1229,8 @@ function detectPressureTrend(pressures, timeArray){
     return "Convective Pressure Drop ⛈️";
   }
 
-  // 2. Strong convective signal (Diperkuat dengan deteksi cepat 1 jam)
-  // Menangkap badai lokal lebih cepat jika drop 1h tajam ATAU total 3h sudah tembus -3
-  if(drop1h <= -1.1 && sekarang <= 1004){
-    return "🌪️ PREDICTED: Tropical Cyclone Formation/Approach (Deteksi Dini Siklon)";
-  }
-
   // ⛈️ TREND BURUK: Tekanan diprediksi terus menurun
-  if (forecastDrop3h < -1.5) {
+  if (forecastDrop3h < -3.0) {
     return "⛈️ ALERT: Deteriorating Weather (Cuaca Akan Memburuk)";
   }
 
@@ -1253,7 +1247,7 @@ function detectPressureTrend(pressures, timeArray){
 
   // 5. Rising pressure from tropical storm (clearing sky)
   // Jika kenaikan 3 jam signifikan, langit biasanya terbuka
-  if((drop1h >= 2 ||drop3h >= 4) && forecastDrop3h >= 3){
+  if(sekarang < 1001 && forecastDrop3h >= 3){
     return "Badai Menjauh 🌤️";
   }
 
