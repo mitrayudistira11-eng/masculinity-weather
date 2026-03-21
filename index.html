@@ -983,7 +983,7 @@ if (rawHum > 99 && tekanan >= 1009 && dewPointSpread <= 1.5 && !isRaining) {
 }
 
 // 2. Veto Terakhir (Hujan)
-if (hoedjan > 0.5) {
+if (hoedjan > 0.01) {
     // Kalau hujan tapi awan di bawah 85%, berarti hujan panas/rintik
     if (finalCloud < 70) {
         weatherDesc = `Hujan Rintik saat ${statusDiksi}`;
