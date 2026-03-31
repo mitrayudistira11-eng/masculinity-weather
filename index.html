@@ -956,7 +956,7 @@ if (uvNow <= 2 && currentHour > 10 && currentHour < 15) {
 }
 
 // Variabel weatherIcon  sudah benar, kita isi barengan di sini
-if (rawHum > 99 && tekanan >= 1009 && dewPointSpread <= 1.5 && !isRaining) {
+if ((rawHum > 99 || data.visibility < 8) && tekanan >= 1009 && dewPointSpread <= 1.5 && !isRaining) {
     statusDiksi = "kabut Embun 🌫️";
     weatherIcon = "🌫️";
 } else if (finalCloud <= 10) {
