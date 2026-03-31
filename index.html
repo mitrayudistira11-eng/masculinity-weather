@@ -481,7 +481,7 @@ if (rawTime) {
     let [hour, minute] = timePart.split(':');
     
     // Tambahkan 8 jam untuk WITA
-    let witaHour = parseInt(hour) + 8;
+    let witaHour = parseInt(hour) + (data.timezone/3600);
     
     // Jika lebih dari 24 jam, berarti ganti hari (opsional tapi bagus buat akurasi)
     if (witaHour >= 24) {
@@ -581,7 +581,7 @@ if (!isNightTime) {
    ======================================================= */
 const capeValue = meteoData.cape || 0;
 
-if (capeValue > 800 && dominantCloud >= 20) {
+if (capeValue > 800 && dominantCloud >= 70) {
     // Tambahkan bonus progresif: setiap 20 J/kg naik 1%
     // Contoh: CAPE 1500 -> (1500-800)/20 = +35%
     let capeBonus = (capeValue - 800) / 20;
