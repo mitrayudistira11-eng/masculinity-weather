@@ -1853,9 +1853,9 @@ feel += windChillEffect
 let intensity = 0.05 + (Math.max(0, 25 - temp) * 0.015); 
 let windEffectNight = (Math.sqrt(v) * (intensity * 1.7));
 feel -= windEffectNight
+}
 
 console.log(`5. Wind Effect: ${(windChillEffect !== 0 ? windChillEffect : -windEffectNight).toFixed(2)}°C`);
-}
 
 let nightFactor = 0;
 
