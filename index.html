@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -2272,8 +2271,7 @@ const solarElevationDeg =
 // deteksi sun break
 const isSunBreak =
   cloud >= 30 && cloud <= 95 &&
-  solarElevationDeg > 25 &&
-  weatherMain.includes("cloud");
+  solarElevationDeg > 25;
 
 if (isSunBreak) {
 
