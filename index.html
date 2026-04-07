@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weather GPS Auto</title>
+<title>Masculinity Weather GPS Auto</title>
 
 <style>
 /* ================= BODY ================= */
@@ -444,7 +445,14 @@ fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&uni
     // 2️⃣ FETCH OPEN METEO
     // ===============================
     return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,pressure_msl,dew_point_2m,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_10cm,soil_moisture_0_to_1cm&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_speed_10m,cape,precipitation,precipitation_probability,shortwave_radiation,direct_radiation,diffuse_radiation,terrestrial_radiation,surface_temperature,soil_temperature_0_to_10cm,soil_moisture_0_to_1cm&daily=temperature_2m_mean&past_days=7&forecast_days=1`)
-    .then(res => res.json())
+    .then(res => {
+        // CEK APAKAH RESPONNYA BERHASIL (status 200)
+        if (!res.ok) {
+            // Kalau 502, 404, atau 500, lempar ke .catch
+            throw new Error(`Waduh, Open-Meteo lagi Error: ${res.status}`);
+        }
+        return res.json();
+    })
     .then(meteo => {
 
         const meteoData = meteo.current || {};
@@ -585,6 +593,10 @@ if (capeValue > 800 && dominantCloud >= 70) {
     // Contoh: CAPE 1500 -> (1500-800)/20 = +35%
     let capeBonus = (capeValue - 800) / 20;
     finalCloud += capeBonus;
+}
+
+if (data.clouds.all < effectiveMeteo) {
+    finalCloud = data.clouds.all; 
 }
 
 // JIKA CAPE SANGAT EKSTRIM (Di atas 1400) DAN ADA AWAN (Low+Mid > 20)
