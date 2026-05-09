@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Masculinity Weather GPS Auto</title>
+<title>Weather GPS Auto</title>
 
 <style>
 /* ================= BODY ================= */
@@ -1567,16 +1567,16 @@ let instabilityEffect = 0;
 
 if(cape > 800){
     // Efek "Sumuk" karena energi atmosfer tinggi
-    instabilityEffect = Math.sqrt(cape / 2000) * 1;
+    instabilityEffect = Math.sqrt(cape / 3000) * 1;
 
     // Jika tekanan turun drastis (konvektif), malah turun suhunya
-    if(pressureTrend === "Convective Pressure Drop ⛈️" || cloudPercent > 79){
-        instabilityEffect *= -1.0; // Berubah jadi booster pendinginan (Downburst)
+    if(pressureTrend === "Convective Pressure Drop ⛈️" || gust > 5){
+        instabilityEffect *= -0.3; // Berubah jadi booster pendinginan (Downburst)
     }
     else
     // TAPI: Jika sudah hujan, efek dingin ini malah makin terasa
     if(preci > 0 || weatherMain.includes("rain") || weatherMain.includes("thunderstorm")) {
-        instabilityEffect *= -1.5; // Berubah jadi booster pendinginan (Downburst)
+        instabilityEffect *= -1.0; // Berubah jadi booster pendinginan (Downburst)
     }
 }
 
@@ -1681,7 +1681,7 @@ let humidityFactor = 1 - (Math.pow(humidity / 100, 1.5) * 0.85);
 else {
 // MODE SIANG: (Panggangan Aspal)
 if (terrestrialRad > 380) {
-let heatPower = Math.sqrt((terrestrialRad - 380) / 750) * 1.5; 
+let heatPower = Math.sqrt((terrestrialRad - 380) / 1500) * 1.1; 
 // Kita hitung peredamnya. 
 // Kalau awan 100%, damping jadi 0.2 (panas gak bisa keluar, pendinginan gagal)
 // Kalau awan 0%, damping jadi 1.0 (panas keluar semua, pendinginan maksimal)
@@ -1727,10 +1727,7 @@ if(isDay){
     let timeWeight = Math.sin(Math.PI * timeProgress);
 
 // 1. Tambahkan Math.min pada cloudRatio agar tidak melebihi 1
-let cloudRatio = Math.min(1, diffuseRad / (shortwave + 1)); 
-
-    // UV hanya sebagai shaping, bukan booster terpisah
-    let uvModifier = 0.8 + (Math.sqrt(uv / 11) * 0.25);
+let cloudRatio = Math.min(1, diffuseRad / (directRad + 1));
 
 
 // 2. Modifikasi cloudModifier agar lebih sensitif pada kondisi "Sumuk"
@@ -1738,12 +1735,12 @@ let cloudRatio = Math.min(1, diffuseRad / (shortwave + 1));
 let cloudModifier = 1 - (cloudRatio * 0.6); 
 
 // 3. Tambahkan proteksi pada radiationStrength agar tidak melonjak di awal pagi
-let radiationStrength = Math.sqrt(shortwave / 1000);
+let radiationStrength = Math.sqrt(directRad / 1000);
 radiationStrength = Math.min(1.1, radiationStrength);
 
 // 4. Kalkulasi Final
 let solarFactor = 
-    radiationStrength * timeWeight * uvModifier * cloudModifier * 7;
+    radiationStrength * timeWeight * cloudModifier * uv;
 
     console.log(`Solar Factor: ${solarFactor.toFixed(2)}°C`);
 
